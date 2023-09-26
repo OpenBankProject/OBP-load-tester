@@ -1,28 +1,249 @@
 package main
 
 import (
-        "fmt"
-        "net/http"
-        "os"
+	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"net/http"
 )
 
+// declaring a struct
+type DirectLoginToken struct {
+	// defining struct variables note: struct needs Proper case field names
+	Token string `json:"token"`
+}
 
-const serverPort = 80
+type CurrentUserId struct {
+	UserId string `json:"user_id"`
+}
+
+type Entitlement struct {
+	BankID   string `json:"bank_id"`
+	RoleName string `json:"role_name"`
+}
 
 func main() {
 
-        requestURL := fmt.Sprintf("http://apisandbox.openbankproject.com:%d", serverPort)
-		fmt.Printf("requestURL: %s\n", requestURL)
-        res, err := http.Get(requestURL)
-        if err != nil {
-                fmt.Printf("error making http request: %s\n", err)
-                os.Exit(1)
-        }
+	var obpApiHost string
+	var username string
+	var password string
+	var consumerKey string
 
-		fmt.Printf("client: got response!\n")
-        fmt.Printf("client: status code: %d\n", res.StatusCode)
+	flag.StringVar(&obpApiHost, "host", "YOUR OBP HOST", "Provide an OBP host to test (include the port if need be)")
+	flag.StringVar(&username, "username", "YOUR USERNAME", "Username to access the service with")
+	flag.StringVar(&password, "password", "YOUR PASSWORD", "Provide your password")
+	flag.StringVar(&consumerKey, "consumer", "YOUR CONSUMER KEY", "Provide your consumer key")
+
+	flag.Parse()
+
+	fmt.Printf("I'm using the following values for -host -username -password -consumer \n")
+
+	fmt.Println(obpApiHost)
+	fmt.Println(username)
+	fmt.Println(password)
+	fmt.Println(consumerKey)
+
+	// Get a DirectLogin token with our credentials
+	myToken := getDirectLoginToken(obpApiHost, username, password, consumerKey)
+	fmt.Printf("DirectLogin token i got: %s\n", myToken)
+
+	createEntitlements(obpApiHost, myToken)
 
 }
 
+func getDirectLoginToken(obpApiHost string, username string, password string, consumerKey string) string {
 
+	// defining a struct instance, we will put the token in this.
+	var directLoginToken1 DirectLoginToken
 
+	// Create client
+	client := &http.Client{}
+
+	// Create request path
+	requestURL := fmt.Sprintf("%s/my/logins/direct", obpApiHost)
+
+	// Nothing in the bod
+	req, err1 := http.NewRequest("POST", requestURL, nil)
+
+	// Header
+	DirectLoginHeaderValue := fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)
+	fmt.Printf("DirectLoginHeaderValue : %s\n", DirectLoginHeaderValue)
+
+	// Headers
+	req.Header.Add("DirectLogin", DirectLoginHeaderValue)
+	req.Header.Add("Content-Type", "application/json")
+
+	// Do the Request
+	resp, err1 := client.Do(req)
+
+	if err1 != nil {
+		fmt.Println("Failure : ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("response Status : ", resp.Status)
+	//fmt.Println("response Headers : ", resp.Header)
+	fmt.Println("response Body : ", string(respBody))
+
+	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
+	err2 := json.Unmarshal(respBody, &directLoginToken1)
+
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+
+	fmt.Println("Struct instance is:", directLoginToken1)
+	fmt.Printf("token is %s \n", directLoginToken1.Token)
+
+	return directLoginToken1.Token
+}
+
+func getUserId(obpApiHost string, token string) (string, error) {
+
+	// Create client
+	client := &http.Client{}
+
+	// defining a struct instance, we will put the token in this.
+	var currentUserId CurrentUserId
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current/user_id", obpApiHost)
+	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current", obpApiHost)
+
+	req, erry := http.NewRequest("GET", requestURL, nil)
+
+	if erry != nil {
+		fmt.Println("Failure : ", erry)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	if err1 != nil {
+		fmt.Println("***** Failure when getting user_id: ", err1)
+	}
+
+	// This approach to setting DirectLogin header does not seem to work
+	//DirectLoginHeaderValue := fmt.Sprintf("token=%s", token)
+	// req.Header.Set("DirectLogin", fmt.Sprintf("token=%s", token))
+	// req.Header.Set("Content-Type", "application/json")
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("getUserId response Status : ", resp.Status)
+	//fmt.Println("response Headers : ", resp.Header)
+	fmt.Println("getUserId response Body : ", string(respBody))
+
+	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
+	err2 := json.Unmarshal(respBody, &currentUserId)
+
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+
+	fmt.Println("Struct instance for currentUserId is:", currentUserId)
+	fmt.Printf("UserId is %s \n", currentUserId.UserId)
+
+	return currentUserId.UserId, err2
+
+}
+
+func createEntitlements(obpApiHost string, token string) string {
+
+	// find the userid
+
+	fmt.Printf("token i will use: %s\n", token)
+
+	userId, error := getUserId(obpApiHost, token)
+
+	if error == nil {
+		// If we are a super user we can grant ourselves this
+		createEntitlement(obpApiHost, token, userId, "", "CanCreateEntitlementAtAnyBank")
+		// Then with the above role we can grant ourselves other roles
+		createEntitlement(obpApiHost, token, userId, "", "CanReadMetrics")
+		createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
+		return "seems ok"
+
+	} else {
+		fmt.Printf("createEntitlements says could not get UserId so stopping : %s\n", error)
+
+	}
+
+	return "maybe ok"
+
+}
+
+func createEntitlement(obpApiHost string, token string, userID string, bankId string, roleName string) string {
+
+	// Create client
+	client := &http.Client{}
+
+	// Create request
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/%s/entitlements", obpApiHost, userID)
+
+	entitlement := Entitlement{
+		BankID:   bankId,
+		RoleName: roleName,
+	}
+	// marshall data to json (like json_encode)
+	marshalledEntitlement, err := json.Marshal(entitlement)
+	if err != nil {
+		fmt.Printf("impossible to marshall entitlement: %s", err)
+	}
+
+	req, errx := http.NewRequest("POST", requestURL, bytes.NewReader(marshalledEntitlement))
+
+	if errx != nil {
+		fmt.Println("Failure : ", errx)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	if err1 != nil {
+		fmt.Println("Failure : ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("response Status : ", resp.Status)
+	//fmt.Println("response Headers : ", resp.Header)
+	fmt.Println("response Body : ", string(respBody))
+
+	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
+	//err2 := json.Unmarshal(respBody, &directLoginToken1)
+
+	// if err2 != nil {
+
+	//     // if error is not nil
+	//     // print error
+	//     fmt.Println(err2)
+	// }
+
+	// printing details of
+	// decoded data
+	// fmt.Println("Struct instance is:", directLoginToken1)
+	// fmt.Printf("token is %s \n", directLoginToken1.Token)
+
+	return "maybe ok"
+
+}
