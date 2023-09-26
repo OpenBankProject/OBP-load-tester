@@ -115,7 +115,6 @@ func getUserId(obpApiHost string, token string) (string, error) {
 	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current", obpApiHost)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
-
 	if erry != nil {
 		fmt.Println("Failure : ", erry)
 	}
@@ -159,32 +158,33 @@ func getUserId(obpApiHost string, token string) (string, error) {
 
 }
 
-func createEntitlements(obpApiHost string, token string) string {
-
-	// find the userid
+func createEntitlements(obpApiHost string, token string) error {
 
 	fmt.Printf("token i will use: %s\n", token)
-
+	// We need the User ID to grant entitlements.
 	userId, error := getUserId(obpApiHost, token)
 
 	if error == nil {
 		// If we are a super user we can grant ourselves this
-		createEntitlement(obpApiHost, token, userId, "", "CanCreateEntitlementAtAnyBank")
+		error := createEntitlement(obpApiHost, token, userId, "", "CanCreateEntitlementAtAnyBank")
 		// Then with the above role we can grant ourselves other roles
-		createEntitlement(obpApiHost, token, userId, "", "CanReadMetrics")
-		createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
-		return "seems ok"
+		if error == nil {
+			error := createEntitlement(obpApiHost, token, userId, "", "CanReadMetrics")
+			if error == nil {
+				error := createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
 
-	} else {
-		fmt.Printf("createEntitlements says could not get UserId so stopping : %s\n", error)
-
+				if error != nil {
+					fmt.Printf("createEntitlements says error: %s\n", error)
+				}
+			}
+		}
 	}
 
-	return "maybe ok"
+	return error
 
 }
 
-func createEntitlement(obpApiHost string, token string, userID string, bankId string, roleName string) string {
+func createEntitlement(obpApiHost string, token string, userID string, bankId string, roleName string) error {
 
 	// Create client
 	client := &http.Client{}
@@ -229,21 +229,6 @@ func createEntitlement(obpApiHost string, token string, userID string, bankId st
 	//fmt.Println("response Headers : ", resp.Header)
 	fmt.Println("response Body : ", string(respBody))
 
-	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
-	//err2 := json.Unmarshal(respBody, &directLoginToken1)
-
-	// if err2 != nil {
-
-	//     // if error is not nil
-	//     // print error
-	//     fmt.Println(err2)
-	// }
-
-	// printing details of
-	// decoded data
-	// fmt.Println("Struct instance is:", directLoginToken1)
-	// fmt.Printf("token is %s \n", directLoginToken1.Token)
-
-	return "maybe ok"
+	return err1
 
 }
