@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // declaring a struct
@@ -50,6 +51,14 @@ func main() {
 	fmt.Printf("DirectLogin token i got: %s\n", myToken)
 
 	createEntitlements(obpApiHost, myToken)
+
+	// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
+	// Minimum offset and limit should be 1
+	for o := 1; o < 1000; o++ {
+		for l := 1; l < 200; l = l + 9 {
+			getMetrics(obpApiHost, myToken, o, l)
+		}
+	}
 
 }
 
@@ -173,7 +182,9 @@ func createEntitlements(obpApiHost string, token string) error {
 			if error == nil {
 				error := createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
 
-				if error != nil {
+				if error == nil {
+					fmt.Println("createEntitlements says: All Good")
+				} else {
 					fmt.Printf("createEntitlements says error: %s\n", error)
 				}
 			}
@@ -230,5 +241,70 @@ func createEntitlement(obpApiHost string, token string, userID string, bankId st
 	fmt.Println("response Body : ", string(respBody))
 
 	return err1
+
+}
+
+func getMetrics(obpApiHost string, token string, offset int, limit int) (string, error) {
+
+	// Create client
+	client := &http.Client{}
+
+	// defining a struct instance, we will put the token in this.
+	var currentUserId CurrentUserId
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/metrics?offset=%d&limit=%d", obpApiHost, offset, limit)
+
+	req, erry := http.NewRequest("GET", requestURL, nil)
+	if erry != nil {
+		fmt.Println("Failure : ", erry)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	before := time.Now()
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	after := time.Now()
+
+	duration := after.Sub(before)
+
+	if err1 != nil {
+		fmt.Println("***** Failure when getting Metrics: ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("getMetrics response Status : ", resp.Status)
+
+	fmt.Println(fmt.Sprintf("getMetrics response Status was %s, offset was %d, limit was %d duration was %s", resp.Status, offset, limit, duration))
+
+	//fmt.Println("response Headers : ", resp.Header)
+
+	if resp.StatusCode != 200 {
+		fmt.Println("getMetrics response Body : ", string(respBody))
+		fmt.Println(fmt.Sprintf("offset was %d", offset))
+		fmt.Println(fmt.Sprintf("limit was %d", limit))
+	}
+
+	//fmt.Println("getMetrics response Body : ", string(respBody))
+
+	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
+	//err2 := json.Unmarshal(respBody, &currentUserId)
+
+	//if err2 != nil {
+	//		fmt.Println(err2)
+	//	}
+
+	//	fmt.Println("Struct instance for currentUserId is:", currentUserId)
+	//	fmt.Printf("UserId is %s \n", currentUserId.UserId)
+
+	return currentUserId.UserId, nil
 
 }
