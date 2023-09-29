@@ -1,5 +1,8 @@
 package main
 
+// Run with:
+// go run main.go -host http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY
+
 import (
 	"bytes"
 	"encoding/json"
