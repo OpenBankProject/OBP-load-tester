@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -50,22 +51,27 @@ func main() {
 	fmt.Println(consumerKey)
 
 	// Get a DirectLogin token with our credentials
-	myToken := getDirectLoginToken(obpApiHost, username, password, consumerKey)
-	fmt.Printf("DirectLogin token i got: %s\n", myToken)
+	myToken, dlTokenError := getDirectLoginToken(obpApiHost, username, password, consumerKey)
 
-	createEntitlements(obpApiHost, myToken)
+	if dlTokenError == nil {
+		fmt.Printf("DirectLogin token i got: %s\n", myToken)
 
-	// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
-	// Minimum offset and limit should be 1
-	for o := 1; o < 1000; o++ {
-		for l := 1; l < 200; l = l + 9 {
-			getMetrics(obpApiHost, myToken, o, l)
+		createEntitlements(obpApiHost, myToken)
+
+		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
+		// Minimum offset and limit should be 1
+		for o := 1; o < 1000; o++ {
+			for l := 1; l < 200; l = l + 9 {
+				getMetrics(obpApiHost, myToken, o, l)
+			}
 		}
+	} else {
+		fmt.Printf("Hmm, getDirectLoginToken returned an error: %s - I will stop now. \n", dlTokenError)
 	}
 
 }
 
-func getDirectLoginToken(obpApiHost string, username string, password string, consumerKey string) string {
+func getDirectLoginToken(obpApiHost string, username string, password string, consumerKey string) (string, error) {
 
 	// defining a struct instance, we will put the token in this.
 	var directLoginToken1 DirectLoginToken
@@ -76,43 +82,64 @@ func getDirectLoginToken(obpApiHost string, username string, password string, co
 	// Create request path
 	requestURL := fmt.Sprintf("%s/my/logins/direct", obpApiHost)
 
-	// Nothing in the bod
+	// Nothing in the body
 	req, err1 := http.NewRequest("POST", requestURL, nil)
 
 	// Header
-	DirectLoginHeaderValue := fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)
-	fmt.Printf("DirectLoginHeaderValue : %s\n", DirectLoginHeaderValue)
+	//DirectLoginHeaderValue := fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)
+	//fmt.Printf("DirectLoginHeaderValue : %s\n", DirectLoginHeaderValue)
 
 	// Headers
-	req.Header.Add("DirectLogin", DirectLoginHeaderValue)
-	req.Header.Add("Content-Type", "application/json")
+	//req.Header.Add("DirectLogin", DirectLoginHeaderValue)
+	//req.Header.Add("Content-Type", "application/json")
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)},
+	}
 
 	// Do the Request
 	resp, err1 := client.Do(req)
 
-	if err1 != nil {
-		fmt.Println("Failure : ", err1)
+	// var j interface{}
+	// var err = json.NewDecoder(resp.Body).Decode(&j)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("%s", j)
+
+	if err1 == nil {
+		fmt.Println("We got a response from the http server. Will check Response Status Code...")
+	} else {
+		fmt.Println("We failed making the http request: ", err1)
+		return "", err1
 	}
 
 	// Read Response Body
 	respBody, _ := io.ReadAll(resp.Body)
 
-	// Display Results
-	fmt.Println("response Status : ", resp.Status)
+	if resp.StatusCode == 201 {
+		fmt.Printf("We got a 201 Response: %d \n", resp.StatusCode)
+	} else {
+		fmt.Printf("Hmm, Non ideal Response Status : %s \n", resp.Status)
+		fmt.Printf("Response Body : %s \n", string(respBody))
+		return "", errors.New("Non 201 Response")
+	}
+
 	//fmt.Println("response Headers : ", resp.Header)
-	fmt.Println("response Body : ", string(respBody))
 
 	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
 	err2 := json.Unmarshal(respBody, &directLoginToken1)
 
-	if err2 != nil {
-		fmt.Println(err2)
+	if err2 == nil {
+		fmt.Printf("I will return this token: %s \n", directLoginToken1.Token)
+		return directLoginToken1.Token, nil
+	} else {
+		fmt.Printf("Struct instance is: %s", directLoginToken1)
+		fmt.Printf("token is %s \n", directLoginToken1.Token)
+		return "", err2
 	}
 
-	fmt.Println("Struct instance is:", directLoginToken1)
-	fmt.Printf("token is %s \n", directLoginToken1.Token)
-
-	return directLoginToken1.Token
 }
 
 func getUserId(obpApiHost string, token string) (string, error) {
