@@ -3,6 +3,10 @@ package main
 // Run with:
 // go run main.go -host http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY
 
+// This script will try and grant entitlements to your user.
+// One way to ensure this works is to add your User ID to the OBP API Props super_admin_user_ids
+// This script will print your user_id
+
 import (
 	"bytes"
 	"encoding/json"
@@ -36,19 +40,30 @@ func main() {
 	var password string
 	var consumerKey string
 
+	var maxOffset int
+	var maxLimit int
+
 	flag.StringVar(&obpApiHost, "host", "YOUR OBP HOST", "Provide an OBP host to test (include the port if need be)")
 	flag.StringVar(&username, "username", "YOUR USERNAME", "Username to access the service with")
 	flag.StringVar(&password, "password", "YOUR PASSWORD", "Provide your password")
 	flag.StringVar(&consumerKey, "consumer", "YOUR CONSUMER KEY", "Provide your consumer key")
 
+	flag.IntVar(&maxOffset, "maxOffset", 10, "Provide your maxOffset")
+	flag.IntVar(&maxLimit, "maxLimit", 5, "Provide your maxLimit")
+
 	flag.Parse()
 
-	fmt.Printf("I'm using the following values for -host -username -password -consumer \n")
+	fmt.Printf("I'm using the following values for -host -username -password -consumer -maxOffset -maxLimit \n")
+
+	fmt.Printf("maxOffset and maxLimit control the number of iterations \n")
 
 	fmt.Println(obpApiHost)
 	fmt.Println(username)
 	fmt.Println(password)
 	fmt.Println(consumerKey)
+
+	fmt.Println(maxOffset)
+	fmt.Println(maxLimit)
 
 	// Get a DirectLogin token with our credentials
 	myToken, dlTokenError := getDirectLoginToken(obpApiHost, username, password, consumerKey)
@@ -59,9 +74,9 @@ func main() {
 		createEntitlements(obpApiHost, myToken)
 
 		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
-		// Minimum offset and limit should be 1
-		for o := 1; o < 1000; o++ {
-			for l := 1; l < 200; l = l + 9 {
+		// Minimum maxOffset and maxLimit should be 1
+		for o := 1; o < maxOffset; o++ {
+			for l := 1; l < maxLimit; l = l + 9 {
 				getMetrics(obpApiHost, myToken, o, l)
 			}
 		}
