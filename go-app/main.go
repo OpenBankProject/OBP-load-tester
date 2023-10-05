@@ -37,6 +37,37 @@ type Entitlement struct {
 	RoleName string `json:"role_name"`
 }
 
+type HostedBy struct {
+	Organisation        string `json:"organisation"`
+	Email               string `json:"email"`
+	Phone               string `json:"phone"`
+	OrganisationWebsite string `json:"organisation_website"`
+}
+
+type HostedAt struct {
+	Organisation        string `json:"organisation"`
+	OrganisationWebsite string `json:"organisation_website"`
+}
+
+type EnergySource struct {
+	Organisation        string `json:"organisation"`
+	OrganisationWebsite string `json:"organisation_website"`
+}
+
+type root struct {
+	Version                  string       `json:"version"`
+	VersionStatus            string       `json:"version_status"`
+	GitCommit                string       `json:"git_commit"`
+	Stage                    string       `json:"stage"`
+	Connector                string       `json:"connector"`
+	Hostname                 string       `json:"hostname"`
+	LocalIdentityProvider    string       `json:"local_identity_provider"`
+	HostedBy                 HostedBy     `json:"hosted_by"`
+	HostedAt                 HostedAt     `json:"hosted_at"`
+	EnergySource             EnergySource `json:"energy_source"`
+	ResourceDocsRequiresRole bool         `json:"resource_docs_requires_role"`
+}
+
 func main() {
 
 	var obpApiHost string
@@ -71,6 +102,14 @@ func main() {
 
 	if dlTokenError == nil {
 		fmt.Printf("DirectLogin token i got: %s\n", myToken)
+
+		myRoot, errRoot := getRoot(obpApiHost, myToken)
+
+		if errRoot == nil {
+			fmt.Printf("gitCommitOfApi is: %s\n", myRoot.GitCommit)
+		} else {
+			fmt.Printf("errRoot: %s\n", errRoot)
+		}
 
 		createEntitlements(obpApiHost, myToken)
 
@@ -148,7 +187,7 @@ func getDirectLoginToken(obpApiHost string, username string, password string, co
 	err2 := json.Unmarshal(respBody, &directLoginToken1)
 
 	if err2 == nil {
-		fmt.Printf("I will return this token: %s \n", directLoginToken1.Token)
+		//fmt.Printf("I will return this token: %s \n", directLoginToken1.Token)
 		return directLoginToken1.Token, nil
 	} else {
 		fmt.Printf("Struct instance is: %s", directLoginToken1)
@@ -199,9 +238,9 @@ func getUserId(obpApiHost string, token string) (string, error) {
 	respBody, _ := io.ReadAll(resp.Body)
 
 	// Display Results
-	fmt.Println("getUserId response Status : ", resp.Status)
+	//fmt.Println("getUserId response Status : ", resp.Status)
 	//fmt.Println("response Headers : ", resp.Header)
-	fmt.Println("getUserId response Body : ", string(respBody))
+	//fmt.Println("getUserId response Body : ", string(respBody))
 
 	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
 	err2 := json.Unmarshal(respBody, &currentUserId)
@@ -210,8 +249,8 @@ func getUserId(obpApiHost string, token string) (string, error) {
 		fmt.Println(err2)
 	}
 
-	fmt.Println("Struct instance for currentUserId is:", currentUserId)
-	fmt.Printf("UserId is %s \n", currentUserId.UserId)
+	//fmt.Println("Struct instance for currentUserId is:", currentUserId)
+	//fmt.Printf("UserId is %s \n", currentUserId.UserId)
 
 	return currentUserId.UserId, err2
 
@@ -219,11 +258,12 @@ func getUserId(obpApiHost string, token string) (string, error) {
 
 func createEntitlements(obpApiHost string, token string) error {
 
-	fmt.Printf("token i will use: %s\n", token)
+	//fmt.Printf("token i will use: %s\n", token)
 	// We need the User ID to grant entitlements.
 	userId, error := getUserId(obpApiHost, token)
 
 	if error == nil {
+		fmt.Printf("userId is: %s \n", userId)
 		// If we are a super user we can grant ourselves this
 		error := createEntitlement(obpApiHost, token, userId, "", "CanCreateEntitlementAtAnyBank")
 		// Then with the above role we can grant ourselves other roles
@@ -233,7 +273,7 @@ func createEntitlements(obpApiHost string, token string) error {
 				error := createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
 
 				if error == nil {
-					fmt.Println("createEntitlements says: All Good")
+					fmt.Println("createEntitlements says: No errors")
 				} else {
 					fmt.Printf("createEntitlements says error: %s\n", error)
 				}
@@ -356,5 +396,52 @@ func getMetrics(obpApiHost string, token string, offset int, limit int) (string,
 	//	fmt.Printf("UserId is %s \n", currentUserId.UserId)
 
 	return currentUserId.UserId, nil
+
+}
+
+func getRoot(obpApiHost string, token string) (root, error) {
+
+	fmt.Printf("Hello from getRoot. obpApiHost is: %s token is %s \n", obpApiHost, token)
+
+	// Create client
+	client := &http.Client{}
+
+	// defining a struct instance, we will put the token in this.
+	var myRoot root
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/root", obpApiHost)
+	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current", obpApiHost)
+
+	req, erry := http.NewRequest("GET", requestURL, nil)
+	if erry != nil {
+		fmt.Println("Failure constructing NewRequest: ", erry)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	if err1 != nil {
+		fmt.Println("***** Failure trying to getRoot: ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
+	err2 := json.Unmarshal(respBody, &myRoot)
+
+	if err2 != nil {
+		fmt.Println(err2)
+		fmt.Println("Struct instance for myRoot is:", myRoot)
+	} else {
+		// fmt.Printf("GitCommit is %s \n", myRoot.GitCommit)
+	}
+
+	return myRoot, err2
 
 }
