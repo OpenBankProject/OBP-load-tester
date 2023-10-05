@@ -1,11 +1,15 @@
-package main
+// OBP Load Test
 
 // Run with:
-// go run main.go -host http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY
+// go run main.go -host http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffset 10 -maxLimit 5
 
-// This script will try and grant entitlements to your user.
-// One way to ensure this works is to add your User ID to the OBP API Props super_admin_user_ids
-// This script will print your user_id
+// This script will try and grant entitlements to your user and then GET Metrics with different pagination to cause lots of cache misses.
+// One way to ensure this works - is to add your User ID to the OBP API Props super_admin_user_ids, else, grant yourself CanCreateEntitlementAtAnyBank manually and then the rest should work.
+
+// This script will print your user_id as a helper.
+// maxOffset and maxLimit affect the number of iterations that will run and the pagination values.
+
+package main
 
 import (
 	"bytes"
@@ -159,6 +163,8 @@ func getDirectLoginToken(obpApiHost string, username string, password string, co
 
 func getUserId(obpApiHost string, token string) (string, error) {
 
+	fmt.Printf("Hello from getUserId. obpApiHost is: %s token is %s \n", obpApiHost, token)
+
 	// Create client
 	client := &http.Client{}
 
@@ -170,8 +176,10 @@ func getUserId(obpApiHost string, token string) (string, error) {
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
 	if erry != nil {
-		fmt.Println("Failure : ", erry)
+		fmt.Println("Failure constructing NewRequest: ", erry)
 	}
+
+	//var hardCodedToken = "eyJhbGciOiJIUzI1NiJ9.eyIiOiIifQ.Bk5ubGsnLHkyH-R4UOv-fS5oJULczUF-qcQglV_nhLY"
 
 	req.Header = http.Header{
 		"Content-Type": {"application/json"},
@@ -182,7 +190,7 @@ func getUserId(obpApiHost string, token string) (string, error) {
 	resp, err1 := client.Do(req)
 
 	if err1 != nil {
-		fmt.Println("***** Failure when getting user_id: ", err1)
+		fmt.Println("***** Failure trying to get user_id: ", err1)
 	}
 
 	// This approach to setting DirectLogin header does not seem to work
