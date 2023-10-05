@@ -58,9 +58,6 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("I'm using the following values for -host -username -password -consumer -maxOffset -maxLimit \n")
-
-	fmt.Printf("maxOffset and maxLimit control the number of iterations \n")
-
 	fmt.Println(obpApiHost)
 	fmt.Println(username)
 	fmt.Println(password)
