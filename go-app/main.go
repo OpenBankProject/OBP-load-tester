@@ -442,6 +442,14 @@ func getRoot(obpApiHost string, token string) (root, error) {
 		// fmt.Printf("GitCommit is %s \n", myRoot.GitCommit)
 	}
 
+	fmt.Printf("------ Here are the Response Headers for : %s -------- \n", requestURL)
+	for k, v := range resp.Header {
+		fmt.Print(k)
+		fmt.Print(" : ")
+		fmt.Println(v)
+	}
+	fmt.Println("------- End of Response Headers --------")
+
 	return myRoot, err2
 
 }
