@@ -68,6 +68,86 @@ type root struct {
 	ResourceDocsRequiresRole bool         `json:"resource_docs_requires_role"`
 }
 
+type ImplementedBy struct {
+	Version  string `json:"version"`
+	Function string `json:"function"`
+}
+
+type JsonString string
+
+type ResourceDoc struct {
+	OperationId         string        `json:"operation_id"`
+	ImplementedBy       ImplementedBy `json:"implemented_by"`
+	RequestVerb         string        `json:"request_verb"`
+	RequestUrl          string        `json:"request_url"`
+	Summary             string        `json:"summary"`
+	Description         string        `json:"description"`
+	DescriptionMarkdown string        `json:"description_markdown"`
+	ExampleRequestBody  JsonString    `json:"example_request_body"`
+	SuccessResponseBody JsonString    `json:"success_response_body"`
+}
+
+/*
+
+{
+    "resource_docs": [
+        {
+            "operation_id": "OBPv1.4.0-testResourceDoc",
+            "implemented_by": {
+                "version": "OBPv1.4.0",
+                "function": "testResourceDoc"
+            },
+            "request_verb": "GET",
+            "request_url": "/dummy",
+            "summary": "Test Resource Doc",
+            "description": "<p>I am only a test Resource Doc</p>\n<p>Authentication is Mandatory</p>\n<p><strong>JSON response body fields:</strong></p>\n",
+            "description_markdown": "I am only a test Resource Doc\n\nAuthentication is Mandatory\n\n\n**JSON response body fields:**\n\n\n",
+            "example_request_body": {
+                "jsonString": "{}"
+            },
+            "success_response_body": {
+                "jsonString": "{}"
+            },
+            "error_response_bodies": [
+                "OBP-50000: Unknown Error.",
+                "OBP-20001: User not logged in. Authentication is required!",
+                "OBP-20006: User is missing one or more roles: "
+            ],
+            "tags": [
+                "Documentation"
+            ],
+            "typed_request_body": {
+                "type": "object",
+                "properties": {
+                    "jsonString": {
+                        "type": "string"
+                    }
+                }
+            },
+            "typed_success_response_body": {
+                "type": "object",
+                "properties": {
+                    "jsonString": {
+                        "type": "string"
+                    }
+                }
+            },
+            "roles": [
+                {
+                    "role": "CanGetCustomers",
+                    "requires_bank_id": true
+                }
+            ],
+            "is_featured": false,
+            "special_instructions": "",
+            "specified_url": "",
+            "connector_methods": []
+        }
+    ]
+}
+
+*/
+
 func main() {
 
 	var obpApiHost string
@@ -120,6 +200,9 @@ func main() {
 				getMetrics(obpApiHost, myToken, o, l)
 			}
 		}
+
+		getResourceDocs(obpApiHost, myToken, 1, 2)
+
 	} else {
 		fmt.Printf("Hmm, getDirectLoginToken returned an error: %s - I will stop now. \n", dlTokenError)
 	}
@@ -451,5 +534,69 @@ func getRoot(obpApiHost string, token string) (root, error) {
 	fmt.Println("------- End of Response Headers --------")
 
 	return myRoot, err2
+
+}
+
+func getResourceDocs(obpApiHost string, token string, offset int, limit int) (string, error) {
+
+	fmt.Println("Hello from getResourceDocs from obpApiHost ", obpApiHost)
+
+	// Create client
+	client := &http.Client{}
+
+	// defining a struct instance, we will put the token in this.
+	var resourceDocs []ResourceDoc
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?offset=%d&limit=%d", obpApiHost, offset, limit)
+
+	req, erry := http.NewRequest("GET", requestURL, nil)
+	if erry != nil {
+		fmt.Println("Failure : ", erry)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	before := time.Now()
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	after := time.Now()
+
+	duration := after.Sub(before)
+
+	if err1 != nil {
+		fmt.Println("***** Failure when getting Metrics: ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("getMetrics response Status : ", resp.Status)
+
+	fmt.Println(fmt.Sprintf("getMetrics response Status was %s, offset was %d, limit was %d duration was %s", resp.Status, offset, limit, duration))
+
+	//fmt.Println("response Headers : ", resp.Header)
+
+	if resp.StatusCode != 200 {
+		fmt.Println("getMetrics response Body : ", string(respBody))
+		fmt.Println(fmt.Sprintf("offset was %d", offset))
+		fmt.Println(fmt.Sprintf("limit was %d", limit))
+	}
+
+	err2 := json.Unmarshal(respBody, &resourceDocs)
+
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+
+	fmt.Println("By from getResourceDocs result is ", resourceDocs)
+	fmt.Println("By from getResourceDocs[0] result is ", resourceDocs[0])
+
+	return "hello", nil
 
 }
