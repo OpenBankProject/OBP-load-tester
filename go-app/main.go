@@ -73,18 +73,60 @@ type ImplementedBy struct {
 	Function string `json:"function"`
 }
 
-type JsonString string
+type ExampleRequestBody struct {
+	JsonString string `json:"jsonString"`
+}
+
+type SuccessResponseBody struct {
+	JsonString string `json:"jsonString"`
+}
+
+type TypedRequestBody struct {
+	Type       string `json:"type"`
+	Properties struct {
+		JsonString struct {
+			Type string `json:"type"`
+		} `json:"properties"`
+	} `json:"properties"`
+}
+
+type TypedSuccessResponseBody struct {
+	Type       string `json:"type"`
+	Properties struct {
+		JsonString struct {
+			Type string `json:"type"`
+		} `json:"properties"`
+	} `json:"properties"`
+}
+
+type Role struct {
+	Role           string `json:"role"`
+	RequiresBankID bool   `json:"requires_bank_id"`
+}
 
 type ResourceDoc struct {
-	OperationId         string        `json:"operation_id"`
-	ImplementedBy       ImplementedBy `json:"implemented_by"`
-	RequestVerb         string        `json:"request_verb"`
-	RequestUrl          string        `json:"request_url"`
-	Summary             string        `json:"summary"`
-	Description         string        `json:"description"`
-	DescriptionMarkdown string        `json:"description_markdown"`
-	ExampleRequestBody  JsonString    `json:"example_request_body"`
-	SuccessResponseBody JsonString    `json:"success_response_body"`
+	OperationID              string                   `json:"operation_id"`
+	ImplementedBy            ImplementedBy            `json:"implemented_by"`
+	RequestVerb              string                   `json:"request_verb"`
+	RequestURL               string                   `json:"request_url"`
+	Summary                  string                   `json:"summary"`
+	Description              string                   `json:"description"`
+	DescriptionMarkdown      string                   `json:"description_markdown"`
+	ExampleRequestBody       ExampleRequestBody       `json:"example_request_body"`
+	SuccessResponseBody      SuccessResponseBody      `json:"success_response_body"`
+	ErrorResponseBodies      []string                 `json:"error_response_bodies"`
+	Tags                     []string                 `json:"tags"`
+	TypedRequestBody         TypedRequestBody         `json:"typed_request_body"`
+	TypedSuccessResponseBody TypedSuccessResponseBody `json:"typed_success_response_body"`
+	Roles                    []Role                   `json:"roles"`
+	IsFeatured               bool                     `json:"is_featured"`
+	SpecialInstructions      string                   `json:"special_instructions"`
+	SpecifiedURL             string                   `json:"specified_url"`
+	ConnectorMethods         []interface{}            `json:"connector_methods"`
+}
+
+type ResourceDocs struct {
+	ResourceDocs []ResourceDoc `json:"resource_docs"`
 }
 
 /*
@@ -545,9 +587,9 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (st
 	client := &http.Client{}
 
 	// defining a struct instance, we will put the token in this.
-	var resourceDocs []ResourceDoc
+	var resourceDocs ResourceDocs
 
-	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?offset=%d&limit=%d", obpApiHost, offset, limit)
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp", obpApiHost)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
 	if erry != nil {
@@ -569,7 +611,7 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (st
 	duration := after.Sub(before)
 
 	if err1 != nil {
-		fmt.Println("***** Failure when getting Metrics: ", err1)
+		fmt.Println("***** Failure when getting Resource Docs: ", err1)
 	}
 
 	// Read Response Body
@@ -595,7 +637,9 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (st
 	}
 
 	fmt.Println("By from getResourceDocs result is ", resourceDocs)
-	fmt.Println("By from getResourceDocs[0] result is ", resourceDocs[0])
+	//fmt.Println("By from getResourceDocs[0] result is ", resourceDocs)
+
+	fmt.Printf("%+v\n", resourceDocs)
 
 	return "hello", nil
 
