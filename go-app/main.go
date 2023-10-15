@@ -105,15 +105,15 @@ type Role struct {
 }
 
 type ResourceDoc struct {
-	OperationID              string                   `json:"operation_id"`
-	ImplementedBy            ImplementedBy            `json:"implemented_by"`
-	RequestVerb              string                   `json:"request_verb"`
-	RequestURL               string                   `json:"request_url"`
-	Summary                  string                   `json:"summary"`
-	Description              string                   `json:"description"`
-	DescriptionMarkdown      string                   `json:"description_markdown"`
-	ExampleRequestBody       ExampleRequestBody       `json:"example_request_body"`
-	SuccessResponseBody      SuccessResponseBody      `json:"success_response_body"`
+	OperationID         string        `json:"operation_id"`
+	ImplementedBy       ImplementedBy `json:"implemented_by"`
+	RequestVerb         string        `json:"request_verb"`
+	RequestURL          string        `json:"request_url"`
+	Summary             string        `json:"summary"`
+	Description         string        `json:"description"`
+	DescriptionMarkdown string        `json:"description_markdown"`
+	//ExampleRequestBody  ExampleRequestBody `json:"example_request_body"`
+	//SuccessResponseBody      SuccessResponseBody      `json:"success_response_body"`
 	ErrorResponseBodies      []string                 `json:"error_response_bodies"`
 	Tags                     []string                 `json:"tags"`
 	TypedRequestBody         TypedRequestBody         `json:"typed_request_body"`
@@ -587,7 +587,7 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (st
 	client := &http.Client{}
 
 	// defining a struct instance, we will put the token in this.
-	var resourceDocs ResourceDocs
+	var myResourceDocs ResourceDocs
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp", obpApiHost)
 
@@ -630,16 +630,116 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (st
 		fmt.Println(fmt.Sprintf("limit was %d", limit))
 	}
 
-	err2 := json.Unmarshal(respBody, &resourceDocs)
+	err2 := json.Unmarshal(respBody, &myResourceDocs)
 
 	if err2 != nil {
 		fmt.Println(err2)
 	}
 
-	fmt.Println("By from getResourceDocs result is ", resourceDocs)
+	//fmt.Println("By from getResourceDocs result is ", resourceDocs)
 	//fmt.Println("By from getResourceDocs[0] result is ", resourceDocs)
 
-	fmt.Printf("%+v\n", resourceDocs)
+	fmt.Println("here we go ")
+
+	//fmt.Printf("%+v\n", resourceDocs)
+
+	//fmt.Printf("Type of resourceDocs: %T", resourceDocs)
+
+	//values := reflect.ValueOf(&resourceDocs)
+	//types := values.Type()
+	//for i := 0; i < values.Len(); i++ {
+	//	fmt.Printf(" i is %d \n", i)
+	//fmt.Println(types.Field(i).Index[0], types.Field(i).Name, values.Field(i))
+	//
+	//}
+
+	// s := reflect.ValueOf(&resourceDocs).Elem()
+	// typeOfT := s.Type()
+
+	// for i := 0; i < s.NumField(); i++ {
+	// 	f := s.Field(i)
+	// 	fmt.Printf("here we are %d: %s %s = %v\n", i,
+	// 		typeOfT.Field(i).Name, f.Type(), f.Interface())
+	// }
+
+	fmt.Println("done ")
+	/*
+		jsonData := `{
+		    "resource_docs": [
+		        {
+		            "operation_id": "OBPv1.4.0-testResourceDoc",
+		            "implemented_by": {
+		                "version": "OBPv1.4.0",
+		                "function": "testResourceDoc"
+		            },
+		            "request_verb": "GET",
+		            "request_url": "/dummy",
+		            "summary": "Test Resource Doc",
+		            "description": "<p>I am only a test Resource Doc</p>\n<p>Authentication is Mandatory</p>\n<p><strong>JSON response body fields:</strong></p>\n",
+		            "description_markdown": "I am only a test Resource Doc\n\nAuthentication is Mandatory\n\n\n**JSON response body fields:**\n\n\n",
+		            "example_request_body": {
+		                "jsonString": "{}"
+		            },
+		            "success_response_body": {
+		                "jsonString": "{}"
+		            },
+		            "error_response_bodies": [
+		                "OBP-50000: Unknown Error.",
+		                "OBP-20001: User not logged in. Authentication is required!",
+		                "OBP-20006: User is missing one or more roles: "
+		            ],
+		            "tags": [
+		                "Documentation"
+		            ],
+		            "typed_request_body": {
+		                "type": "object",
+		                "properties": {
+		                    "jsonString": {
+		                        "type": "string"
+		                    }
+		                }
+		            },
+		            "typed_success_response_body": {
+		                "type": "object",
+		                "properties": {
+		                    "jsonString": {
+		                        "type": "string"
+		                    }
+		                }
+		            },
+		            "roles": [
+		                {
+		                    "role": "CanGetCustomers",
+		                    "requires_bank_id": true
+		                }
+		            ],
+		            "is_featured": false,
+		            "special_instructions": "",
+		            "specified_url": "",
+		            "connector_methods": []
+		        }
+		    ]
+		}`
+	*/
+
+	//var resourceDocs ResourceDocs
+	// err := json.Unmarshal([]byte(jsonData), &myResourceDocs)
+	// if err != nil {
+	// 	fmt.Println("Error unmarshalling JSON:", err)
+	// 	return "quick", nil
+	// }
+
+	fmt.Printf("%+v\n", &myResourceDocs)
+
+	println("HERE IS ONE")
+
+	fmt.Printf(" op id: %s summary is: %s \n", myResourceDocs.ResourceDocs[0].OperationID, myResourceDocs.ResourceDocs[0].Summary)
+
+	println("END OF ONE")
+
+	for i := 0; i < len(myResourceDocs.ResourceDocs); i++ {
+		fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
+	}
 
 	return "hello", nil
 
