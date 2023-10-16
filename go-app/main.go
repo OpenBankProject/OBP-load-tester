@@ -196,21 +196,26 @@ func main() {
 	var username string
 	var password string
 	var consumerKey string
+	var apiExplorerHost string
 
 	var maxOffset int
 	var maxLimit int
 
-	flag.StringVar(&obpApiHost, "host", "YOUR OBP HOST", "Provide an OBP host to test (include the port if need be)")
+	var tags string
+
+	flag.StringVar(&obpApiHost, "obpapihost", "YOUR OBP HOST", "Provide an OBP host to test (include the protocol and port)")
 	flag.StringVar(&username, "username", "YOUR USERNAME", "Username to access the service with")
 	flag.StringVar(&password, "password", "YOUR PASSWORD", "Provide your password")
 	flag.StringVar(&consumerKey, "consumer", "YOUR CONSUMER KEY", "Provide your consumer key")
+	flag.StringVar(&apiExplorerHost, "apiexplorerhost", "API EXPLORER II HOST", "Provide API Explorer II for documentation links ")
+	flag.StringVar(&tags, "tags", "tags", "Provide Resource Doc tags")
 
 	flag.IntVar(&maxOffset, "maxOffset", 10, "Provide your maxOffset")
 	flag.IntVar(&maxLimit, "maxLimit", 5, "Provide your maxLimit")
 
 	flag.Parse()
 
-	fmt.Printf("I'm using the following values for -host -username -password -consumer -maxOffset -maxLimit \n")
+	fmt.Printf("I'm using the following values for -obpapihost -username -password -consumer -maxOffset -maxLimit -apiexplorerhost \n")
 	fmt.Println(obpApiHost)
 	fmt.Println(username)
 	fmt.Println(password)
@@ -218,6 +223,8 @@ func main() {
 
 	fmt.Println(maxOffset)
 	fmt.Println(maxLimit)
+
+	fmt.Println(apiExplorerHost)
 
 	// Get a DirectLogin token with our credentials
 	myToken, dlTokenError := getDirectLoginToken(obpApiHost, username, password, consumerKey)
@@ -243,7 +250,7 @@ func main() {
 			}
 		}
 
-		myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, 1, 2)
+		myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, 1, 2, apiExplorerHost, tags)
 
 		if myRDError == nil {
 			fmt.Printf("we got %d resource docs", myRDCount)
@@ -585,7 +592,7 @@ func getRoot(obpApiHost string, token string) (root, error) {
 
 }
 
-func getResourceDocs(obpApiHost string, token string, offset int, limit int) (int, error) {
+func getResourceDocs(obpApiHost string, token string, offset int, limit int, apiExplorerHost string, tags string) (int, error) {
 
 	fmt.Println("Hello from getResourceDocs from obpApiHost ", obpApiHost)
 
@@ -595,7 +602,7 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (in
 	// defining a struct instance, we will put the token in this.
 	var myResourceDocs ResourceDocs
 
-	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp", obpApiHost)
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?tags=%s", obpApiHost, tags)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
 	if erry != nil {
@@ -702,8 +709,14 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int) (in
 	*/
 
 	for i := 0; i < len(myResourceDocs.ResourceDocs); i++ {
-		fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
+		//fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
+
+		fmt.Printf("[%s](%s/operationid/%s)\n", myResourceDocs.ResourceDocs[i].Summary, apiExplorerHost, myResourceDocs.ResourceDocs[i].OperationID)
 	}
+
+	// obpApiExplorerHost
+
+	// https://apiexplorer-ii-sandbox.openbankproject.com/operationid/OBPv4.0.0-getBankLevelEndpointTags?version=OBPv5.1.0
 
 	return len(myResourceDocs.ResourceDocs), nil
 
