@@ -1,7 +1,7 @@
 // OBP Load Test
 
 // Run with:
-// go run main.go -host http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffset 10 -maxLimit 5
+// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffset 10 -maxLimit 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com
 
 // This script will try and grant entitlements to your user and then GET Metrics with different pagination to cause lots of cache misses.
 // One way to ensure this works - is to add your User ID to the OBP API Props super_admin_user_ids, else, grant yourself CanCreateEntitlementAtAnyBank manually and then the rest should work.
@@ -246,6 +246,8 @@ func main() {
 		// Minimum maxOffset and maxLimit should be 1
 		for o := 1; o < maxOffset; o++ {
 			for l := 1; l < maxLimit; l = l + 9 {
+				getMetrics(obpApiHost, myToken, o, l)
+				// Get it a second time, should hit any cache.
 				getMetrics(obpApiHost, myToken, o, l)
 			}
 		}
