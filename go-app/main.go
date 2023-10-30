@@ -1,13 +1,16 @@
 // OBP Load Test
 
+// This script exercises the OBP Metrics and Resource Doc endpoints.
+
 // Run with:
-// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffset 10 -maxLimit 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com
+// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password haGdju%YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffsetMetrics 5 -maxLimitMetrics 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com -loopResourceDocs 10 -printResourceDocs 1
 
 // This script will try and grant entitlements to your user and then GET Metrics with different pagination to cause lots of cache misses.
 // One way to ensure this works - is to add your User ID to the OBP API Props super_admin_user_ids, else, grant yourself CanCreateEntitlementAtAnyBank manually and then the rest should work.
 
 // This script will print your user_id as a helper.
-// maxOffset and maxLimit affect the number of iterations that will run and the pagination values.
+// maxOffsetMetrics and maxLimitMetrics affect the number of iterations that will run and the pagination values.
+// loopResourceDocs will affect the number of iterations getting Resource Docs.
 
 package main
 
@@ -198,33 +201,42 @@ func main() {
 	var consumerKey string
 	var apiExplorerHost string
 
-	var maxOffset int
-	var maxLimit int
+	var maxOffsetMetrics int
+	var maxLimitMetrics int
+
+	var loopResourceDocs int
 
 	var tags string
+	var printResourceDocs int
 
 	flag.StringVar(&obpApiHost, "obpapihost", "YOUR OBP HOST", "Provide an OBP host to test (include the protocol and port)")
 	flag.StringVar(&username, "username", "YOUR USERNAME", "Username to access the service with")
 	flag.StringVar(&password, "password", "YOUR PASSWORD", "Provide your password")
 	flag.StringVar(&consumerKey, "consumer", "YOUR CONSUMER KEY", "Provide your consumer key")
 	flag.StringVar(&apiExplorerHost, "apiexplorerhost", "API EXPLORER II HOST", "Provide API Explorer II for documentation links ")
-	flag.StringVar(&tags, "tags", "tags", "Provide Resource Doc tags")
+	flag.StringVar(&tags, "tags", "", "Provide Resource Doc tags")
 
-	flag.IntVar(&maxOffset, "maxOffset", 10, "Provide your maxOffset")
-	flag.IntVar(&maxLimit, "maxLimit", 5, "Provide your maxLimit")
+	flag.IntVar(&maxOffsetMetrics, "maxOffsetMetrics", 10, "Provide your maxOffsetMetrics")
+	flag.IntVar(&maxLimitMetrics, "maxLimitMetrics", 5, "Provide your maxLimitMetrics")
+
+	flag.IntVar(&loopResourceDocs, "loopResourceDocs", 5, "Provide your loopResourceDocs")
+	flag.IntVar(&printResourceDocs, "printResourceDocs", 0, "Print the found Resource Docs (1) or not (0)")
 
 	flag.Parse()
 
-	fmt.Printf("I'm using the following values for -obpapihost -username -password -consumer -maxOffset -maxLimit -apiexplorerhost \n")
+	fmt.Printf("I'm using the following values for -obpapihost -username -password -consumer -maxOffsetMetrics -maxLimitMetrics -apiexplorerhost -loopResourceDocs -printResourceDocs \n")
 	fmt.Println(obpApiHost)
 	fmt.Println(username)
 	fmt.Println(password)
 	fmt.Println(consumerKey)
 
-	fmt.Println(maxOffset)
-	fmt.Println(maxLimit)
+	fmt.Println(maxOffsetMetrics)
+	fmt.Println(maxLimitMetrics)
 
 	fmt.Println(apiExplorerHost)
+
+	fmt.Println(loopResourceDocs)
+	fmt.Println(printResourceDocs)
 
 	// Get a DirectLogin token with our credentials
 	myToken, dlTokenError := getDirectLoginToken(obpApiHost, username, password, consumerKey)
@@ -243,21 +255,54 @@ func main() {
 		createEntitlements(obpApiHost, myToken)
 
 		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
-		// Minimum maxOffset and maxLimit should be 1
-		for o := 1; o < maxOffset; o++ {
-			for l := 1; l < maxLimit; l = l + 9 {
+		// Minimum maxOffsetMetrics and maxLimitMetrics should be 1
+		for o := 1; o < maxOffsetMetrics; o++ {
+			for l := 1; l < maxLimitMetrics; l = l + 9 {
 				getMetrics(obpApiHost, myToken, o, l)
 				// Get it a second time, should hit any cache.
 				getMetrics(obpApiHost, myToken, o, l)
 			}
 		}
 
-		myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, 1, 2, apiExplorerHost, tags)
+		for i := 1; i <= loopResourceDocs; i++ {
+			//for l := 1; l < maxLimitMetrics; l = l + 9 {
+			myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, i, "static", apiExplorerHost, tags, printResourceDocs)
 
-		if myRDError == nil {
-			fmt.Printf("we got %d resource docs", myRDCount)
-		} else {
-			fmt.Printf("we got error %s getting resource docs", myRDError)
+			if myRDError == nil {
+				fmt.Printf("we got %d resource docs \n", myRDCount)
+			} else {
+				fmt.Printf("we got error %s getting resource docs \n", myRDError)
+			}
+
+			if myRDError == nil {
+				fmt.Printf("we got %d resource docs \n", myRDCount)
+			} else {
+				fmt.Printf("we got error %s getting resource docs\n", myRDError)
+			}
+
+			myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "dynamic", apiExplorerHost, tags, printResourceDocs)
+
+			if myRDError == nil {
+				fmt.Printf("we got %d resource docs\n", myRDCount)
+			} else {
+				fmt.Printf("we got error %s getting resource docs\n", myRDError)
+			}
+
+			if myRDError == nil {
+				fmt.Printf("we got %d resource docs\n", myRDCount)
+			} else {
+				fmt.Printf("we got error %s getting resource docs\n", myRDError)
+			}
+
+			myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "all", apiExplorerHost, tags, printResourceDocs)
+
+			if myRDError == nil {
+				fmt.Printf("we got %d resource docs\n", myRDCount)
+			} else {
+				fmt.Printf("we got error %s getting resource docs\n", myRDError)
+			}
+
+			//}
 		}
 
 	} else {
@@ -594,9 +639,9 @@ func getRoot(obpApiHost string, token string) (root, error) {
 
 }
 
-func getResourceDocs(obpApiHost string, token string, offset int, limit int, apiExplorerHost string, tags string) (int, error) {
+func getResourceDocs(obpApiHost string, token string, tryCount int, content string, apiExplorerHost string, tags string, printResourceDocs int) (int, error) {
 
-	fmt.Println("Hello from getResourceDocs from obpApiHost ", obpApiHost)
+	fmt.Println("Hello from getResourceDocs. Using obpApiHost: ", obpApiHost)
 
 	// Create client
 	client := &http.Client{}
@@ -604,7 +649,9 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int, api
 	// defining a struct instance, we will put the token in this.
 	var myResourceDocs ResourceDocs
 
-	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?tags=%s", obpApiHost, tags)
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?tags=%s&content=%s", obpApiHost, tags, content)
+
+	fmt.Println("requestURL : ", requestURL)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
 	if erry != nil {
@@ -635,12 +682,12 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int, api
 	// Display Results
 	fmt.Println("getResourceDocs response Status : ", resp.Status)
 
-	fmt.Println(fmt.Sprintf("getResourceDocs response Status was %s, offset was %d, limit was %d duration was %s", resp.Status, offset, limit, duration))
+	fmt.Println(fmt.Sprintf("getResourceDocs response Status was %s, duration was %s, tryCount was %d, content was %s ", resp.Status, duration, tryCount, content))
 
 	if resp.StatusCode != 200 {
 		fmt.Println("getResourceDocs response Body : ", string(respBody))
-		fmt.Println(fmt.Sprintf("offset was %d", offset))
-		fmt.Println(fmt.Sprintf("limit was %d", limit))
+		fmt.Println(fmt.Sprintf("tryCount was %d", tryCount))
+		fmt.Println(fmt.Sprintf("content was %s", content))
 	}
 
 	err2 := json.Unmarshal(respBody, &myResourceDocs)
@@ -710,12 +757,15 @@ func getResourceDocs(obpApiHost string, token string, offset int, limit int, api
 	}`
 	*/
 
-	for i := 0; i < len(myResourceDocs.ResourceDocs); i++ {
-		//fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
+	if printResourceDocs == 1 { // Trying to use bool here was ugly
 
-		fmt.Printf("[%s](%s/operationid/%s)\n", myResourceDocs.ResourceDocs[i].Summary, apiExplorerHost, myResourceDocs.ResourceDocs[i].OperationID)
+		for i := 0; i < len(myResourceDocs.ResourceDocs); i++ {
+			//fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
+
+			fmt.Printf("[%s](%s/operationid/%s)\n", myResourceDocs.ResourceDocs[i].Summary, apiExplorerHost, myResourceDocs.ResourceDocs[i].OperationID)
+		}
+
 	}
-
 	// obpApiExplorerHost
 
 	// https://apiexplorer-ii-sandbox.openbankproject.com/operationid/OBPv4.0.0-getBankLevelEndpointTags?version=OBPv5.1.0
