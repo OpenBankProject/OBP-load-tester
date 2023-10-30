@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -132,6 +133,50 @@ type ResourceDocs struct {
 	ResourceDocs []ResourceDoc `json:"resource_docs"`
 }
 
+/////
+
+// Swagger related
+
+type Info struct {
+	Title   string `json:"title"`
+	Version string `json:"version"`
+}
+
+type AccountName struct {
+	Type       string `json:"type"`
+	Properties struct {
+		Name    string `json:"name"`
+		Balance int64  `json:"balance,string"`
+	} `json:"properties"`
+}
+
+type Response struct {
+	Description string `json:"description"`
+	Schema      struct {
+		Ref string `json:"$ref"`
+	} `json:"schema"`
+}
+
+type Path struct {
+	OperationID string   `json:"operationId"`
+	Produces    []string `json:"produces"`
+	Responses   map[string]Response
+	Consumes    []string `json:"consumes"`
+	Description string   `json:"description"`
+	Summary     string   `json:"summary"`
+}
+
+type Swagger struct {
+	Swagger     string                 `json:"swagger"`
+	Info        Info                   `json:"info"`
+	Definitions map[string]AccountName `json:"definitions"`
+	Paths       map[string]map[string]Path
+	Host        string   `json:"host"`
+	Schemes     []string `json:"schemes"`
+}
+
+// End Swagger related
+
 /*
 
 {
@@ -193,7 +238,19 @@ type ResourceDocs struct {
 
 */
 
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randSeq(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
 func main() {
+
+	rand.Seed(time.Now().UnixNano())
 
 	var obpApiHost string
 	var username string
@@ -263,6 +320,8 @@ func main() {
 				getMetrics(obpApiHost, myToken, o, l)
 			}
 		}
+
+		createDynamicEndpoints(obpApiHost, myToken)
 
 		for i := 1; i <= loopResourceDocs; i++ {
 			//for l := 1; l < maxLimitMetrics; l = l + 9 {
@@ -499,6 +558,158 @@ func createEntitlement(obpApiHost string, token string, userID string, bankId st
 
 	if errx != nil {
 		fmt.Println("Failure : ", errx)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	if err1 != nil {
+		fmt.Println("Failure : ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("response Status : ", resp.Status)
+	//fmt.Println("response Headers : ", resp.Header)
+	fmt.Println("response Body : ", string(respBody))
+
+	return err1
+
+}
+
+func createDynamicEndpoints(obpApiHost string, token string) error {
+
+	// Create client
+	client := &http.Client{}
+
+	// Create request
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/dynamic-endpoints", obpApiHost)
+
+	jsonBody := []byte(`{
+		"swagger": "2.0",
+		"info": {
+			"title": "Bank Accounts (Dynamic Endpoint)",
+			"version": "1.0.0"
+		},
+		"definitions": {
+			"AnAccount": {
+				"type": "object",
+				"properties": {
+					"account_name": {
+						"type": "string",
+						"example": "family account"
+					},
+					"account_balance": {
+						"type": "integer",
+						"format": "int64",
+						"example": 1000.123
+					}
+				}
+			}
+		},
+		"paths": {
+			"/accounts": {
+				"post": {
+					"operationId": "POST_account",
+					"produces": [
+						"application/json"
+					],
+					"responses": {
+						"201": {
+							"description": "Success Response",
+							"schema": {
+								"$ref": "#/definitions/AnAccount"
+							}
+						}
+					},
+					"consumes": [
+						"application/json"
+					],
+					"description": "POST Accounts",
+					"summary": "POST Accounts"
+				}
+			},
+			"/accounts/{account_id}": {
+				"get": {
+					"operationId": "GET_account",
+					"produces": [
+						"application/json"
+					],
+					"responses": {
+						"200": {
+							"description": "Success Response",
+							"schema": {
+								"$ref": "#/definitions/AccountName"
+							}
+						}
+					},
+					"consumes": [
+						"application/json"
+					],
+					"description": "Get Bank Account",
+					"summary": "Get Bank Account by Id"
+				}
+			}
+		},
+		"host": "obp_mock",
+		"schemes": [
+			"http",
+			"https"
+		]
+	}`)
+
+	var swagger Swagger
+	if err := json.Unmarshal([]byte(jsonBody), &swagger); err != nil {
+		fmt.Println("Error unmarshalling JSON:", err)
+	}
+
+	fmt.Printf("Here are Paths......\n")
+
+	fmt.Printf("%+v\n", swagger.Paths)
+
+	fmt.Printf("Here are Paths as we process......\n")
+
+	for key, val := range swagger.Paths {
+		fmt.Println(key, val)
+
+		prefix := randSeq(10)
+
+		newKey := fmt.Sprintf("/%s%s", prefix, key)
+
+		fmt.Println(newKey)
+
+		swagger.Paths[newKey] = val
+
+		delete(swagger.Paths, key)
+
+	}
+
+	fmt.Printf("Here are Paths after Modification......\n")
+
+	for key, val := range swagger.Paths {
+		fmt.Println(key, val)
+
+	}
+
+	fmt.Printf("...... Done ......\n")
+
+	marshalledSwagger, err := json.Marshal(swagger)
+	if err != nil {
+		fmt.Printf("impossible to marshall swagger: %s", err)
+	}
+
+	req, errx := http.NewRequest("POST", requestURL, bytes.NewReader(marshalledSwagger))
+
+	if errx != nil {
+		fmt.Println("Failure creating NewRequest: ", errx)
 	}
 
 	req.Header = http.Header{
