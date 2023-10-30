@@ -441,6 +441,8 @@ func getUserId(obpApiHost string, token string) (string, error) {
 
 }
 
+//
+
 func createEntitlements(obpApiHost string, token string) error {
 
 	//fmt.Printf("token i will use: %s\n", token)
@@ -456,9 +458,13 @@ func createEntitlements(obpApiHost string, token string) error {
 			error := createEntitlement(obpApiHost, token, userId, "", "CanReadMetrics")
 			if error == nil {
 				error := createEntitlement(obpApiHost, token, userId, "", "CanReadAggregateMetrics")
-
 				if error == nil {
-					fmt.Println("createEntitlements says: No errors")
+					error := createEntitlement(obpApiHost, token, userId, "", "CanCreateDynamicEndpoint")
+					if error == nil {
+						fmt.Println("createEntitlements says: No errors")
+					} else {
+						fmt.Printf("createEntitlements says error: %s\n", error)
+					}
 				} else {
 					fmt.Printf("createEntitlements says error: %s\n", error)
 				}
