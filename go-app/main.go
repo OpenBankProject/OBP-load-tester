@@ -135,32 +135,33 @@ type ResourceDocs struct {
 
 /////
 
-// Swagger related
-
+// //////// Swagger related //////////////////
 type Info struct {
 	Title   string `json:"title"`
 	Version string `json:"version"`
 }
 
-type AccountName struct {
-	Type       string `json:"type"`
-	Properties struct {
-		Name    string `json:"name"`
-		Balance int64  `json:"balance,string"`
-	} `json:"properties"`
+type Property struct {
+	Type    string `json:"type"`
+	Example string `json:"example"`
 }
 
-type Response struct {
+type BankAccount struct {
+	Type       string              `json:"type"`
+	Properties map[string]Property `json:"properties"`
+}
+
+type Responses struct {
 	Description string `json:"description"`
 	Schema      struct {
 		Ref string `json:"$ref"`
 	} `json:"schema"`
 }
 
-type Path struct {
-	OperationID string   `json:"operationId"`
+type PathItem struct {
+	OperationId string   `json:"operationId"`
 	Produces    []string `json:"produces"`
-	Responses   map[string]Response
+	Responses   map[string]Responses
 	Consumes    []string `json:"consumes"`
 	Description string   `json:"description"`
 	Summary     string   `json:"summary"`
@@ -169,13 +170,104 @@ type Path struct {
 type Swagger struct {
 	Swagger     string                 `json:"swagger"`
 	Info        Info                   `json:"info"`
-	Definitions map[string]AccountName `json:"definitions"`
-	Paths       map[string]map[string]Path
+	Definitions map[string]BankAccount `json:"definitions"`
+	Paths       map[string]map[string]PathItem
 	Host        string   `json:"host"`
 	Schemes     []string `json:"schemes"`
 }
 
-// End Swagger related
+func getSwagger() Swagger {
+
+	var modifier string = randSeq(10)
+
+	// Create Info struct
+	info := Info{
+		Title:   "Bank Accounts (Dynamic Endpoint) " + modifier,
+		Version: "1.0.0",
+	}
+
+	// Create Property struct
+	// property := Property{
+	// 	Type:    "string",
+	// 	Example: "family account",
+	// }
+
+	// Create BankAccount struct
+	bankAccount := BankAccount{
+		Type: "object",
+		Properties: map[string]Property{
+			"account_name": {
+				Type:    "string",
+				Example: "family account",
+			},
+			"account_balance": {
+				Type:    "string",
+				Example: "1000.01",
+			},
+		},
+	}
+
+	// Create Responses struct
+	responses := Responses{
+		Description: "Success Response",
+		Schema: struct {
+			Ref string `json:"$ref"`
+		}{
+			Ref: "#/definitions/AnAccount",
+		},
+	}
+
+	// Create PathItem struct for POST /accounts
+	postAccount := PathItem{
+		OperationId: modifier + "_POST_account",
+		Produces:    []string{"application/json"},
+		Responses: map[string]Responses{
+			"201": responses,
+		},
+		Consumes:    []string{"application/json"},
+		Description: "POST Accounts",
+		Summary:     "POST Accounts",
+	}
+
+	// Create PathItem struct for GET /accounts/{account_id}
+	getAccount := PathItem{
+		OperationId: modifier + "_GET_account",
+		Produces:    []string{"application/json"},
+		Responses: map[string]Responses{
+			"200": responses,
+		},
+		Consumes:    []string{"application/json"},
+		Description: "Get Bank Account",
+		Summary:     "Get Bank Account by Id",
+	}
+
+	// Create Paths map
+	paths := map[string]map[string]PathItem{
+		"/" + modifier + "/accounts": {
+			"post": postAccount,
+		},
+		"/" + modifier + "/accounts/{account_id}": {
+			"get": getAccount,
+		},
+	}
+
+	// Create Swagger struct
+	mySwagger := Swagger{
+		Swagger: "2.0",
+		Info:    info,
+		Definitions: map[string]BankAccount{
+			"AnAccount": bankAccount,
+		},
+		Paths:   paths,
+		Host:    "obp_mock",
+		Schemes: []string{"http", "https"},
+	}
+
+	return mySwagger
+
+}
+
+// End Swagger related /////////////////////////////
 
 /*
 
@@ -323,49 +415,54 @@ func main() {
 
 		createDynamicEndpoints(obpApiHost, myToken)
 
-		for i := 1; i <= loopResourceDocs; i++ {
-			//for l := 1; l < maxLimitMetrics; l = l + 9 {
-			myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, i, "static", apiExplorerHost, tags, printResourceDocs)
-
-			if myRDError == nil {
-				fmt.Printf("we got %d resource docs \n", myRDCount)
-			} else {
-				fmt.Printf("we got error %s getting resource docs \n", myRDError)
-			}
-
-			if myRDError == nil {
-				fmt.Printf("we got %d resource docs \n", myRDCount)
-			} else {
-				fmt.Printf("we got error %s getting resource docs\n", myRDError)
-			}
-
-			myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "dynamic", apiExplorerHost, tags, printResourceDocs)
-
-			if myRDError == nil {
-				fmt.Printf("we got %d resource docs\n", myRDCount)
-			} else {
-				fmt.Printf("we got error %s getting resource docs\n", myRDError)
-			}
-
-			if myRDError == nil {
-				fmt.Printf("we got %d resource docs\n", myRDCount)
-			} else {
-				fmt.Printf("we got error %s getting resource docs\n", myRDError)
-			}
-
-			myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "all", apiExplorerHost, tags, printResourceDocs)
-
-			if myRDError == nil {
-				fmt.Printf("we got %d resource docs\n", myRDCount)
-			} else {
-				fmt.Printf("we got error %s getting resource docs\n", myRDError)
-			}
-
-			//}
-		}
+		getVariousResourceDocs(obpApiHost, myToken, apiExplorerHost, tags, loopResourceDocs, printResourceDocs)
 
 	} else {
 		fmt.Printf("Hmm, getDirectLoginToken returned an error: %s - I will stop now. \n", dlTokenError)
+	}
+
+}
+
+func getVariousResourceDocs(obpApiHost string, myToken string, apiExplorerHost string, tags string, loopResourceDocs int, printResourceDocs int) {
+	for i := 1; i <= loopResourceDocs; i++ {
+		//for l := 1; l < maxLimitMetrics; l = l + 9 {
+		myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, i, "static", apiExplorerHost, tags, printResourceDocs)
+
+		if myRDError == nil {
+			fmt.Printf("we got %d resource docs \n", myRDCount)
+		} else {
+			fmt.Printf("we got error %s getting resource docs \n", myRDError)
+		}
+
+		if myRDError == nil {
+			fmt.Printf("we got %d resource docs \n", myRDCount)
+		} else {
+			fmt.Printf("we got error %s getting resource docs\n", myRDError)
+		}
+
+		myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "dynamic", apiExplorerHost, tags, printResourceDocs)
+
+		if myRDError == nil {
+			fmt.Printf("we got %d resource docs\n", myRDCount)
+		} else {
+			fmt.Printf("we got error %s getting resource docs\n", myRDError)
+		}
+
+		if myRDError == nil {
+			fmt.Printf("we got %d resource docs\n", myRDCount)
+		} else {
+			fmt.Printf("we got error %s getting resource docs\n", myRDError)
+		}
+
+		myRDCount, myRDError = getResourceDocs(obpApiHost, myToken, i, "all", apiExplorerHost, tags, printResourceDocs)
+
+		if myRDError == nil {
+			fmt.Printf("we got %d resource docs\n", myRDCount)
+		} else {
+			fmt.Printf("we got error %s getting resource docs\n", myRDError)
+		}
+
+		//}
 	}
 
 }
@@ -592,121 +689,192 @@ func createDynamicEndpoints(obpApiHost string, token string) error {
 	// Create request
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/dynamic-endpoints", obpApiHost)
-
-	jsonBody := []byte(`{
-		"swagger": "2.0",
-		"info": {
-			"title": "Bank Accounts (Dynamic Endpoint)",
-			"version": "1.0.0"
-		},
-		"definitions": {
-			"AnAccount": {
-				"type": "object",
-				"properties": {
-					"account_name": {
-						"type": "string",
-						"example": "family account"
-					},
-					"account_balance": {
-						"type": "integer",
-						"format": "int64",
-						"example": 1000.123
+	/*
+		jsonStr := `{
+			"swagger": "2.0",
+			"info": {
+				"title": "Bank Accounts (Dynamic Endpoint)",
+				"version": "1.0.0"
+			},
+			"definitions": {
+				"AnAccount": {
+					"type": "object",
+					"properties": {
+						"account_name": {
+							"type": "string",
+							"example": "family account"
+						},
+						"account_balance": {
+							"type": "string",
+							"example": "1000.01"
+						}
 					}
 				}
-			}
-		},
-		"paths": {
-			"/accounts": {
-				"post": {
-					"operationId": "POST_account",
-					"produces": [
-						"application/json"
-					],
-					"responses": {
-						"201": {
-							"description": "Success Response",
-							"schema": {
-								"$ref": "#/definitions/AnAccount"
+			},
+			"paths": {
+				"/accounts": {
+					"post": {
+						"operationId": "POST_account",
+						"produces": [
+							"application/json"
+						],
+						"responses": {
+							"201": {
+								"description": "Success Response",
+								"schema": {
+									"$ref": "#/definitions/AnAccount"
+								}
 							}
-						}
-					},
-					"consumes": [
-						"application/json"
-					],
-					"description": "POST Accounts",
-					"summary": "POST Accounts"
+						},
+						"consumes": [
+							"application/json"
+						],
+						"description": "POST Accounts",
+						"summary": "POST Accounts"
+					}
+				},
+				"/accounts/{account_id}": {
+					"get": {
+						"operationId": "GET_account",
+						"produces": [
+							"application/json"
+						],
+						"responses": {
+							"200": {
+								"description": "Success Response",
+								"schema": {
+									"$ref": "#/definitions/AccountName"
+								}
+							}
+						},
+						"consumes": [
+							"application/json"
+						],
+						"description": "Get Bank Account",
+						"summary": "Get Bank Account by Id"
+					}
 				}
 			},
-			"/accounts/{account_id}": {
-				"get": {
-					"operationId": "GET_account",
-					"produces": [
-						"application/json"
-					],
-					"responses": {
-						"200": {
-							"description": "Success Response",
-							"schema": {
-								"$ref": "#/definitions/AccountName"
-							}
-						}
-					},
-					"consumes": [
-						"application/json"
-					],
-					"description": "Get Bank Account",
-					"summary": "Get Bank Account by Id"
-				}
+			"host": "obp_mock",
+			"schemes": [
+				"http",
+				"https"
+			]
+		}`
+
+	*/
+
+	// var swaggerData Swagger
+
+	// var modifier string = randSeq(10)
+
+	// // Load the json string into an instance of a struct
+	// err := json.Unmarshal([]byte(jsonStr), &swaggerData)
+	// if err != nil {
+	// 	fmt.Println("Error:", err)
+	// } else {
+	// 	fmt.Println("Unmarshal of json into struct instance  seems ok")
+	// }
+
+	swaggerData := getSwagger()
+
+	fmt.Println("Swagger Version:", swaggerData.Swagger)
+	fmt.Println("Info Title:", swaggerData.Info.Title)
+	fmt.Println("Info Version:", swaggerData.Info.Version)
+	fmt.Println("Host:", swaggerData.Host)
+	fmt.Println("Schemes:", swaggerData.Schemes)
+	fmt.Println("Definitions:", swaggerData.Definitions)
+	fmt.Println("Paths:", swaggerData.Paths)
+
+	// Set a new title
+
+	/*
+		swaggerData.Info.Title = fmt.Sprintf("%s - %s", swaggerData.Info.Title, modifier)
+
+		fmt.Printf("Here is the updated title\n")
+
+		fmt.Printf("%+v\n", swaggerData.Info.Title)
+
+		fmt.Printf("Here are Paths......\n")
+
+		fmt.Printf("%+v\n", swaggerData.Paths)
+
+		for key, val := range swaggerData.Paths {
+			fmt.Printf("key is: %+v val is: %+v\n", key, val)
+
+			// note postThing is a COPY
+			postThing, ok := val["post"]
+			// If the key exists
+			if ok {
+				// Do something
+				originalOperationId := postThing.OperationId
+				fmt.Printf("postThing.originalOperationId: %+v \n", originalOperationId)
+
+				postThing.OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
+
+				// hmm can't change this in place?
+				//val["post"].OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
+
+				fmt.Printf("postThing.OperationId is now: %+v \n", postThing.OperationId)
+			} else {
+				fmt.Println("could not get postThing")
 			}
-		},
-		"host": "obp_mock",
-		"schemes": [
-			"http",
-			"https"
-		]
-	}`)
 
-	var swagger Swagger
-	if err := json.Unmarshal([]byte(jsonBody), &swagger); err != nil {
-		fmt.Println("Error unmarshalling JSON:", err)
-	}
+			getThing, ok := val["get"]
+			// If the key exists
+			if ok {
+				// Do something
+				originalOperationId := getThing.OperationId
+				fmt.Printf("getThing.originalOperationId: %+v \n", originalOperationId)
+				getThing.OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
 
-	fmt.Printf("Here are Paths......\n")
+				fmt.Printf("getThing.OperationId is now: %+v \n", getThing.OperationId)
+			} else {
+				fmt.Println("could not get getThing")
+			}
 
-	fmt.Printf("%+v\n", swagger.Paths)
+			fmt.Printf("get of val is : %+v\n", val["get"])
+			fmt.Printf("put of val is : %+v\n", val["put"])
+			fmt.Printf("delete of val is : %+v\n", val["delete"])
+			fmt.Printf("head of val is : %+v\n", val["head"])
 
-	fmt.Printf("Here are Paths as we process......\n")
+		}
 
-	for key, val := range swagger.Paths {
-		fmt.Println(key, val)
+		fmt.Printf("Here are Paths as we process......\n")
 
-		prefix := randSeq(10)
+		// Add a random prefix to every path. The path is a key.
+		for key, val := range swaggerData.Paths {
 
-		newKey := fmt.Sprintf("/%s%s", prefix, key)
+			// assume paths are unique to start with so we can use a static modifier
+			newKey := fmt.Sprintf("/%s%s", modifier, key)
 
-		fmt.Println(newKey)
+			fmt.Println(newKey)
 
-		swagger.Paths[newKey] = val
+			swaggerData.Paths[newKey] = val
 
-		delete(swagger.Paths, key)
+			delete(swaggerData.Paths, key)
 
-	}
+		}
 
-	fmt.Printf("Here are Paths after Modification......\n")
+		fmt.Printf("Here are Paths after Modification......\n")
 
-	for key, val := range swagger.Paths {
-		fmt.Println(key, val)
+		for key, val := range swaggerData.Paths {
+			fmt.Println(key, val)
 
-	}
+		}
 
-	fmt.Printf("...... Done ......\n")
+		fmt.Printf("...... Done ......\n")
+	*/
 
-	marshalledSwagger, err := json.Marshal(swagger)
+	// Convert the struct to json
+	swaggerJson, err := json.Marshal(swaggerData)
 	if err != nil {
 		fmt.Printf("impossible to marshall swagger: %s", err)
+	} else {
+		fmt.Println("Marshalled data into json ok")
 	}
 
-	req, errx := http.NewRequest("POST", requestURL, bytes.NewReader(marshalledSwagger))
+	req, errx := http.NewRequest("POST", requestURL, bytes.NewReader(swaggerJson))
 
 	if errx != nil {
 		fmt.Println("Failure creating NewRequest: ", errx)
@@ -717,11 +885,13 @@ func createDynamicEndpoints(obpApiHost string, token string) error {
 		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
 	}
 
+	fmt.Println("Before creating resource doc : ")
+
 	// Fetch Request
 	resp, err1 := client.Do(req)
 
 	if err1 != nil {
-		fmt.Println("Failure : ", err1)
+		fmt.Println("****** Failure creating resource docs : ", err1)
 	}
 
 	// Read Response Body
