@@ -3,7 +3,7 @@
 // This script exercises the OBP Metrics and Resource Doc endpoints.
 
 // Run with:
-// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password haGdju%YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffsetMetrics 5 -maxLimitMetrics 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com -loopResourceDocs 10 -printResourceDocs 1
+// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password haGdju%YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffsetMetrics 5 -maxLimitMetrics 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com -loopResourceDocs 10 -printResourceDocs 1 -loopCreateDynamicEndpoints 5
 
 // This script will try and grant entitlements to your user and then GET Metrics with different pagination to cause lots of cache misses.
 // One way to ensure this works - is to add your User ID to the OBP API Props super_admin_user_ids, else, grant yourself CanCreateEntitlementAtAnyBank manually and then the rest should work.
@@ -176,13 +176,11 @@ type Swagger struct {
 	Schemes     []string `json:"schemes"`
 }
 
-func getSwagger() Swagger {
-
-	var modifier string = randSeq(10)
+func getSwagger(modifier string) Swagger {
 
 	// Create Info struct
 	info := Info{
-		Title:   "Bank Accounts (Dynamic Endpoint) " + modifier,
+		Title:   fmt.Sprintf("Bank Accounts (Dynamic Endpoint) %s", modifier),
 		Version: "1.0.0",
 	}
 
@@ -219,7 +217,7 @@ func getSwagger() Swagger {
 
 	// Create PathItem struct for POST /accounts
 	postAccount := PathItem{
-		OperationId: modifier + "_POST_account",
+		OperationId: fmt.Sprintf("%s_%s", modifier, "POST_account"),
 		Produces:    []string{"application/json"},
 		Responses: map[string]Responses{
 			"201": responses,
@@ -231,7 +229,7 @@ func getSwagger() Swagger {
 
 	// Create PathItem struct for GET /accounts/{account_id}
 	getAccount := PathItem{
-		OperationId: modifier + "_GET_account",
+		OperationId: fmt.Sprintf("%s_%s", modifier, "GET_account"),
 		Produces:    []string{"application/json"},
 		Responses: map[string]Responses{
 			"200": responses,
@@ -243,10 +241,10 @@ func getSwagger() Swagger {
 
 	// Create Paths map
 	paths := map[string]map[string]PathItem{
-		"/" + modifier + "/accounts": {
+		fmt.Sprintf("/%s%s", modifier, "/accounts"): {
 			"post": postAccount,
 		},
-		"/" + modifier + "/accounts/{account_id}": {
+		fmt.Sprintf("/%s%s", modifier, "/accounts/{account_id}"): {
 			"get": getAccount,
 		},
 	}
@@ -354,6 +352,7 @@ func main() {
 	var maxLimitMetrics int
 
 	var loopResourceDocs int
+	var loopCreateDynamicEndpoints int
 
 	var tags string
 	var printResourceDocs int
@@ -369,6 +368,8 @@ func main() {
 	flag.IntVar(&maxLimitMetrics, "maxLimitMetrics", 5, "Provide your maxLimitMetrics")
 
 	flag.IntVar(&loopResourceDocs, "loopResourceDocs", 5, "Provide your loopResourceDocs")
+	flag.IntVar(&loopCreateDynamicEndpoints, "loopCreateDynamicEndpoints", 5, "Provide your loopCreateDynamicEndpoints")
+
 	flag.IntVar(&printResourceDocs, "printResourceDocs", 0, "Print the found Resource Docs (1) or not (0)")
 
 	flag.Parse()
@@ -385,6 +386,8 @@ func main() {
 	fmt.Println(apiExplorerHost)
 
 	fmt.Println(loopResourceDocs)
+	fmt.Println(loopCreateDynamicEndpoints)
+
 	fmt.Println(printResourceDocs)
 
 	// Get a DirectLogin token with our credentials
@@ -413,9 +416,11 @@ func main() {
 			}
 		}
 
-		createDynamicEndpoints(obpApiHost, myToken)
+		loopDynamicEndpoints(obpApiHost, myToken, loopCreateDynamicEndpoints)
 
 		getVariousResourceDocs(obpApiHost, myToken, apiExplorerHost, tags, loopResourceDocs, printResourceDocs)
+
+		getDynamicMessageDocs(obpApiHost, myToken, loopResourceDocs, apiExplorerHost)
 
 	} else {
 		fmt.Printf("Hmm, getDirectLoginToken returned an error: %s - I will stop now. \n", dlTokenError)
@@ -423,9 +428,16 @@ func main() {
 
 }
 
+func loopDynamicEndpoints(obpApiHost string, myToken string, loopCreateDynamicEndpoints int) {
+
+	for i := 1; i <= loopCreateDynamicEndpoints; i++ {
+		var modifier string = randSeq(10)
+		createDynamicEndpoints(obpApiHost, myToken, modifier)
+	}
+}
+
 func getVariousResourceDocs(obpApiHost string, myToken string, apiExplorerHost string, tags string, loopResourceDocs int, printResourceDocs int) {
 	for i := 1; i <= loopResourceDocs; i++ {
-		//for l := 1; l < maxLimitMetrics; l = l + 9 {
 		myRDCount, myRDError := getResourceDocs(obpApiHost, myToken, i, "static", apiExplorerHost, tags, printResourceDocs)
 
 		if myRDError == nil {
@@ -461,8 +473,6 @@ func getVariousResourceDocs(obpApiHost string, myToken string, apiExplorerHost s
 		} else {
 			fmt.Printf("we got error %s getting resource docs\n", myRDError)
 		}
-
-		//}
 	}
 
 }
@@ -617,16 +627,28 @@ func createEntitlements(obpApiHost string, token string) error {
 				if error == nil {
 					error := createEntitlement(obpApiHost, token, userId, "", "CanCreateDynamicEndpoint")
 					if error == nil {
-						fmt.Println("createEntitlements says: No errors")
+						error := createEntitlement(obpApiHost, token, userId, "", "CanGetAllDynamicMessageDocs")
+						if error == nil {
+							error := createEntitlement(obpApiHost, token, userId, "", "CanCreateDynamicMessageDoc")
+							if error == nil {
+								fmt.Println("createEntitlements says: No errors")
+							} else {
+								fmt.Printf("createEntitlements says error: %s\n", error)
+							}
+						} else {
+							fmt.Printf("createEntitlements says error: %s\n", error)
+						}
 					} else {
 						fmt.Printf("createEntitlements says error: %s\n", error)
 					}
 				} else {
 					fmt.Printf("createEntitlements says error: %s\n", error)
 				}
-			}
+			} // note these missing message on error
 		}
 	}
+
+	//
 
 	return error
 
@@ -681,7 +703,7 @@ func createEntitlement(obpApiHost string, token string, userID string, bankId st
 
 }
 
-func createDynamicEndpoints(obpApiHost string, token string) error {
+func createDynamicEndpoints(obpApiHost string, token string, modifier string) error {
 
 	// Create client
 	client := &http.Client{}
@@ -776,7 +798,7 @@ func createDynamicEndpoints(obpApiHost string, token string) error {
 	// 	fmt.Println("Unmarshal of json into struct instance  seems ok")
 	// }
 
-	swaggerData := getSwagger()
+	swaggerData := getSwagger(modifier)
 
 	fmt.Println("Swagger Version:", swaggerData.Swagger)
 	fmt.Println("Info Title:", swaggerData.Info.Title)
@@ -1038,6 +1060,8 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?tags=%s&content=%s", obpApiHost, tags, content)
 
+	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.0.0/obp?tags=%s&content=%s", obpApiHost, tags, content)
+
 	fmt.Println("requestURL : ", requestURL)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
@@ -1158,5 +1182,92 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 	// https://apiexplorer-ii-sandbox.openbankproject.com/operationid/OBPv4.0.0-getBankLevelEndpointTags?version=OBPv5.1.0
 
 	return len(myResourceDocs.ResourceDocs), nil
+
+}
+
+// Define a struct to match the JSON structure
+type DynamicMessage struct {
+	OutboundAvroSchema     string      `json:"outbound_avro_schema"`
+	InboundAvroSchema      string      `json:"inbound_avro_schema"`
+	AdapterImplementation  string      `json:"adapter_implementation"`
+	DynamicMessageDocID    string      `json:"dynamic_message_doc_id"`
+	Description            string      `json:"description"`
+	Process                string      `json:"process"`
+	OutboundTopic          string      `json:"outbound_topic"`
+	MethodBody             string      `json:"method_body"`
+	MessageFormat          string      `json:"message_format"`
+	ExampleOutboundMessage struct{}    `json:"example_outbound_message"`
+	InboundTopic           string      `json:"inbound_topic"`
+	ExampleInboundMessage  struct{}    `json:"example_inbound_message"`
+	BankID                 interface{} `json:"bank_id"`
+	ProgrammingLang        string      `json:"programming_lang"`
+}
+
+type DynamicMessages struct {
+	DynamicMessageDocs []DynamicMessage `json:"dynamic-message-docs"`
+}
+
+func getDynamicMessageDocs(obpApiHost string, token string, tryCount int, apiExplorerHost string) (int, error) {
+
+	fmt.Println("Hello from getDynamicMessageDocs. Using obpApiHost: ", obpApiHost)
+
+	// Create client
+	client := &http.Client{}
+
+	// defining a struct instance, we will put the token in this.
+	var myDynamicMessages DynamicMessages
+
+	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/dynamic-message-docs", obpApiHost)
+
+	fmt.Println("requestURL : ", requestURL)
+
+	req, erry := http.NewRequest("GET", requestURL, nil)
+	if erry != nil {
+		fmt.Println("Failure : ", erry)
+	}
+
+	req.Header = http.Header{
+		"Content-Type": {"application/json"},
+		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
+	}
+
+	before := time.Now()
+
+	// Fetch Request
+	resp, err1 := client.Do(req)
+
+	after := time.Now()
+
+	duration := after.Sub(before)
+
+	if err1 != nil {
+		fmt.Println("***** Failure when getting getDynamicMessageDocs: ", err1)
+	}
+
+	// Read Response Body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Display Results
+	fmt.Println("getDynamicMessageDocs response Status : ", resp.Status)
+
+	fmt.Println(fmt.Sprintf("getDynamicMessageDocs response Status was %s, duration was %s, tryCount was %d", resp.Status, duration, tryCount))
+
+	if resp.StatusCode != 200 {
+		fmt.Println("getDynamicMessageDocs response Body: ", string(respBody))
+		fmt.Println(fmt.Sprintf("tryCount was %d", tryCount))
+
+	}
+
+	err2 := json.Unmarshal(respBody, &myDynamicMessages)
+
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+
+	for i := 0; i < len(myDynamicMessages.DynamicMessageDocs); i++ {
+		fmt.Printf(myDynamicMessages.DynamicMessageDocs[i].Process)
+	}
+
+	return len(myDynamicMessages.DynamicMessageDocs), nil
 
 }
