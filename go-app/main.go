@@ -26,6 +26,71 @@ import (
 	"time"
 )
 
+// 	"cloud.google.com/go/bigquery"
+
+// Metric represents the structure of the "metrics" array element in the JSON
+type Metric struct {
+	UserID                       string    `json:"user_id"`
+	URL                          string    `json:"url"`
+	Date                         time.Time `json:"date"`
+	UserName                     string    `json:"user_name"`
+	AppName                      string    `json:"app_name"`
+	DeveloperEmail               string    `json:"developer_email"`
+	ImplementedByPartialFunction string    `json:"implemented_by_partial_function"`
+	ImplementedInVersion         string    `json:"implemented_in_version"`
+	ConsumerID                   string    `json:"consumer_id"`
+	Verb                         string    `json:"verb"`
+	CorrelationID                string    `json:"correlation_id"`
+	Duration                     int       `json:"duration"`
+	SourceIP                     string    `json:"source_ip"`
+	TargetIP                     string    `json:"target_ip"`
+	ResponseBody                 string    `json:"response_body"`
+}
+
+// MetricsWrapper represents the structure of the root JSON object
+type MetricsWrapper struct {
+	Metrics []Metric `json:"metrics"`
+}
+
+// Item represents a row item.
+type Item struct {
+	Name string
+	Age  int
+}
+
+// Save implements the ValueSaver interface.
+// This example disables best-effort de-duplication, which allows for higher throughput.
+// func (i *Item) Save() (map[string]bigquery.Value, string, error) {
+// 	return map[string]bigquery.Value{
+// 		"full_name": i.Name,
+// 		"age":       i.Age,
+// 	}, bigquery.NoDedupeID, nil
+// }
+
+// insertRows demonstrates inserting data into a table using the streaming insert mechanism.
+// func insertRows(projectID, datasetID, tableID string) error {
+// 	// projectID := "my-project-id"
+// 	// datasetID := "mydataset"
+// 	// tableID := "mytable"
+// 	ctx := context.Background()
+// 	client, err := bigquery.NewClient(ctx, projectID)
+// 	if err != nil {
+// 		return fmt.Errorf("bigquery.NewClient: %w", err)
+// 	}
+// 	defer client.Close()
+
+// 	inserter := client.Dataset(datasetID).Table(tableID).Inserter()
+// 	items := []*Item{
+// 		// Item implements the ValueSaver interface.
+// 		{Name: "Phred Phlyntstone", Age: 32},
+// 		{Name: "Wylma Phlyntstone", Age: 29},
+// 	}
+// 	if err := inserter.Put(ctx, items); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
+
 // declaring a struct
 type DirectLoginToken struct {
 	// defining struct variables note: struct needs Proper case field names
@@ -975,6 +1040,39 @@ func getMetrics(obpApiHost string, token string, offset int, limit int) (string,
 		fmt.Println("getMetrics response Body : ", string(respBody))
 		fmt.Println(fmt.Sprintf("offset was %d", offset))
 		fmt.Println(fmt.Sprintf("limit was %d", limit))
+	} else {
+
+		// Unmarshal JSON into the struct
+		var metricsWrapper MetricsWrapper
+		err := json.Unmarshal([]byte(respBody), &metricsWrapper)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
+
+		// Accessing the data
+
+		metrics := metricsWrapper.Metrics
+
+		fmt.Println(fmt.Sprintf("Here are the %d Metrics records:", len(metrics)))
+
+		for _, metric := range metrics {
+			fmt.Printf("User ID: %s\n", metric.UserID)
+			fmt.Printf("URL: %s\n", metric.URL)
+			fmt.Printf("Date: %s\n", metric.Date)
+			fmt.Printf("User Name: %s\n", metric.UserName)
+			fmt.Printf("App Name: %s\n", metric.AppName)
+			fmt.Printf("Developer Email: %s\n", metric.DeveloperEmail)
+			fmt.Printf("Implemented By Partial Function: %s\n", metric.ImplementedByPartialFunction)
+			fmt.Printf("Implemented In Version: %s\n", metric.ImplementedInVersion)
+			fmt.Printf("Consumer ID: %s\n", metric.ConsumerID)
+			fmt.Printf("Verb: %s\n", metric.Verb)
+			fmt.Printf("Correlation ID: %s\n", metric.CorrelationID)
+			fmt.Printf("Duration: %d\n", metric.Duration)
+			fmt.Printf("Source IP: %s\n", metric.SourceIP)
+			fmt.Printf("Target IP: %s\n", metric.TargetIP)
+			fmt.Printf("Response Body: %s\n", metric.ResponseBody)
+		}
+
 	}
 
 	//fmt.Println("getMetrics response Body : ", string(respBody))
