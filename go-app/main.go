@@ -473,8 +473,10 @@ func main() {
 
 		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
 		// Minimum maxOffsetMetrics and maxLimitMetrics should be 1
-		for o := 0; o <= maxOffsetMetrics; o = o + 1 {
-			for l := 1; l <= maxLimitMetrics; l = l + 1 {
+		for o := 0; o <= maxOffsetMetrics; o++ {
+
+			for l := 1; l <= maxLimitMetrics; l++ {
+
 				getMetrics(obpApiHost, myToken, o, l)
 				// Get it a second time, should hit any cache.
 				getMetrics(obpApiHost, myToken, o, l)
