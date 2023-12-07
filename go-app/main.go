@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -24,9 +25,11 @@ import (
 	"math/rand"
 	"net/http"
 	"time"
+
+	"cloud.google.com/go/bigquery"
 )
 
-// 	"cloud.google.com/go/bigquery"
+//
 
 // Metric represents the structure of the "metrics" array element in the JSON
 type Metric struct {
@@ -60,36 +63,36 @@ type Item struct {
 
 // Save implements the ValueSaver interface.
 // This example disables best-effort de-duplication, which allows for higher throughput.
-// func (i *Item) Save() (map[string]bigquery.Value, string, error) {
-// 	return map[string]bigquery.Value{
-// 		"full_name": i.Name,
-// 		"age":       i.Age,
-// 	}, bigquery.NoDedupeID, nil
-// }
+func (i *Item) Save() (map[string]bigquery.Value, string, error) {
+	return map[string]bigquery.Value{
+		"full_name": i.Name,
+		"age":       i.Age,
+	}, bigquery.NoDedupeID, nil
+}
 
 // insertRows demonstrates inserting data into a table using the streaming insert mechanism.
-// func insertRows(projectID, datasetID, tableID string) error {
-// 	// projectID := "my-project-id"
-// 	// datasetID := "mydataset"
-// 	// tableID := "mytable"
-// 	ctx := context.Background()
-// 	client, err := bigquery.NewClient(ctx, projectID)
-// 	if err != nil {
-// 		return fmt.Errorf("bigquery.NewClient: %w", err)
-// 	}
-// 	defer client.Close()
+func insertRows(projectID, datasetID, tableID string) error {
+	// projectID := "my-project-id"
+	// datasetID := "mydataset"
+	// tableID := "mytable"
+	ctx := context.Background()
+	client, err := bigquery.NewClient(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("bigquery.NewClient: %w", err)
+	}
+	defer client.Close()
 
-// 	inserter := client.Dataset(datasetID).Table(tableID).Inserter()
-// 	items := []*Item{
-// 		// Item implements the ValueSaver interface.
-// 		{Name: "Phred Phlyntstone", Age: 32},
-// 		{Name: "Wylma Phlyntstone", Age: 29},
-// 	}
-// 	if err := inserter.Put(ctx, items); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
+	inserter := client.Dataset(datasetID).Table(tableID).Inserter()
+	items := []*Item{
+		// Item implements the ValueSaver interface.
+		{Name: "Phred Phlyntstone", Age: 32},
+		{Name: "Wylma Phlyntstone", Age: 29},
+	}
+	if err := inserter.Put(ctx, items); err != nil {
+		return err
+	}
+	return nil
+}
 
 // declaring a struct
 type DirectLoginToken struct {
