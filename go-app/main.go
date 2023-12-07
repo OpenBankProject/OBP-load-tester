@@ -473,8 +473,8 @@ func main() {
 
 		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
 		// Minimum maxOffsetMetrics and maxLimitMetrics should be 1
-		for o := 1; o < maxOffsetMetrics; o++ {
-			for l := 1; l < maxLimitMetrics; l = l + 9 {
+		for o := 0; o <= maxOffsetMetrics; o = o + 1 {
+			for l := 1; l <= maxLimitMetrics; l = l + 1 {
 				getMetrics(obpApiHost, myToken, o, l)
 				// Get it a second time, should hit any cache.
 				getMetrics(obpApiHost, myToken, o, l)
@@ -994,6 +994,8 @@ func createDynamicEndpoints(obpApiHost string, token string, modifier string) er
 }
 
 func getMetrics(obpApiHost string, token string, offset int, limit int) (string, error) {
+
+	fmt.Println(fmt.Sprintf("hello from getMetrics offset is %d, limit is %d ", offset, limit))
 
 	// Create client
 	client := &http.Client{}
