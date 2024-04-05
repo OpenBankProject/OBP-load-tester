@@ -1,9 +1,9 @@
-// OBP Load Test
+// OBP Get Documentation
 
 // This script exercises the OBP Metrics and Resource Doc endpoints.
 
 // Run with:
-// go run main.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password haGdju%YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffsetMetrics 5 -maxLimitMetrics 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com -loopResourceDocs 10 -printResourceDocs 1 -loopCreateDynamicEndpoints 5
+// go run get-documentation.go -obpapihost http://127.0.0.1:8080 -username YOUR USERNAME -password haGdju%YOUR PASSWORD -consumer YOUR CONSUMER KEY -maxOffsetMetrics 5 -maxLimitMetrics 5 -apiexplorerhost https://apiexplorer-ii-sandbox.openbankproject.com -loopResourceDocs 10 -printResourceDocs 1 -loopCreateDynamicEndpoints 5
 
 // This script will try and grant entitlements to your user and then GET Metrics with different pagination to cause lots of cache misses.
 // One way to ensure this works - is to add your User ID to the OBP API Props super_admin_user_ids, else, grant yourself CanCreateEntitlementAtAnyBank manually and then the rest should work.
@@ -21,7 +21,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -29,147 +28,11 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"sort"
 	"time"
-
-	"cloud.google.com/go/bigquery"
 )
 
 //
-
-// Metric represents the structure of the "metrics" array element in the JSON
-type Metric struct {
-	UserID                       string    `json:"user_id"`
-	URL                          string    `json:"url"`
-	Date                         time.Time `json:"date"`
-	UserName                     string    `json:"user_name"`
-	AppName                      string    `json:"app_name"`
-	DeveloperEmail               string    `json:"developer_email"`
-	ImplementedByPartialFunction string    `json:"implemented_by_partial_function"`
-	ImplementedInVersion         string    `json:"implemented_in_version"`
-	ConsumerID                   string    `json:"consumer_id"`
-	Verb                         string    `json:"verb"`
-	CorrelationID                string    `json:"correlation_id"`
-	Duration                     int       `json:"duration"`
-	SourceIP                     string    `json:"source_ip"`
-	TargetIP                     string    `json:"target_ip"`
-	ResponseBody                 string    `json:"response_body"`
-}
-
-type BasicMetric struct {
-	UserID          string
-	URL             string
-	CorrelationID   string
-	Duration        int
-	SourceIP        string
-	TargetIP        string
-	PartialFunction string
-}
-
-// MetricsWrapper represents the structure of the root JSON object
-type MetricsWrapper struct {
-	Metrics []Metric `json:"metrics"`
-}
-
-// Item represents a row item.
-type Item struct {
-	Name string
-	Age  int
-}
-
-// Save implements the ValueSaver interface.
-// This example disables best-effort de-duplication, which allows for higher throughput.
-func (i *Item) Save() (map[string]bigquery.Value, string, error) {
-	return map[string]bigquery.Value{
-		"name": i.Name,
-		"age":  i.Age,
-	}, bigquery.NoDedupeID, nil
-}
-
-// func (i *BasicMetric) Save() (map[string]bigquery.Value, string, error) {
-// 	return map[string]bigquery.Value{
-// 		"id":              i.CorrelationID,
-// 		"duration":        i.Duration,
-// 		"partialFunction": i.PartialFunction,
-// 	}, bigquery.NoDedupeID, nil
-// }
-
-func (i *BasicMetric) Save() (map[string]bigquery.Value, string, error) {
-	return map[string]bigquery.Value{
-		"insertId":        i.CorrelationID,
-		"correlationId":   i.CorrelationID,
-		"duration":        i.Duration,
-		"partialFunction": i.PartialFunction,
-	}, "", nil
-}
-
-// func (i *Metric) Save() (map[string]bigquery.Value, string, error) {
-// 	return map[string]bigquery.Value{
-// 		"id":       i.CorrelationID,
-// 		"duration": i.Duration,
-// 	}, bigquery.NoDedupeID, nil
-// }
-
-// insertRows demonstrates inserting data into a table using the streaming insert mechanism.
-// func insertRows(projectID, datasetID, tableID string) error {
-
-// 	ctx := context.Background()
-
-// 	client, err := bigquery.NewClient(ctx, projectID)
-// 	if err != nil {
-// 		fmt.Printf("bigquery.NewClient: %s\n", err)
-// 		return fmt.Errorf("bigquery.NewClient: %w", err)
-// 	} else {
-// 		fmt.Printf("We got a bigquery.NewClient ok: \n")
-// 	}
-// 	defer client.Close()
-
-// 	fmt.Printf("before gettting inserter: \n")
-// 	inserter := client.Dataset(datasetID).Table(tableID).Inserter()
-// 	items := []*Metric{
-// 		// Item implements the ValueSaver interface.
-// 		{CorrelationID: "asldjkhlkajshldoiuy", Duration: 32},
-// 		{CorrelationID: "woiuyoriuyowiueor", Duration: 29},
-// 	}
-// 	fmt.Printf("before inserter.Put \n")
-// 	if err := inserter.Put(ctx, items); err != nil {
-// 		fmt.Printf("inserter error: %s\n", err)
-// 		return err
-// 	} else {
-// 		fmt.Printf("inserter OK?: \n")
-// 	}
-// 	return nil
-// }
-
-func insertMetricRow(projectID, datasetID, tableID string, metric Metric) error {
-
-	ctx := context.Background()
-
-	client, err := bigquery.NewClient(ctx, projectID)
-	if err != nil {
-		fmt.Printf("insertMetricRow bigquery.NewClient: %s\n", err)
-		return fmt.Errorf("insertMetricRow bigquery.NewClient: %w", err)
-	} else {
-		fmt.Printf("insertMetricRow We got a bigquery.NewClient ok: \n")
-	}
-	defer client.Close()
-
-	fmt.Printf("insertMetricRow before gettting inserter: \n")
-	inserter := client.Dataset(datasetID).Table(tableID).Inserter()
-	items := []*BasicMetric{
-		// Item implements the ValueSaver interface.
-		{CorrelationID: metric.CorrelationID,
-			Duration:        metric.Duration,
-			PartialFunction: metric.ImplementedByPartialFunction},
-	}
-	fmt.Printf("insertMetricRow before inserter.Put \n")
-	if err := inserter.Put(ctx, items); err != nil {
-		fmt.Printf("insertMetricRow inserter error: %s\n", err)
-		return err
-	} else {
-		fmt.Printf("insertMetricRow inserter OK?: \n")
-	}
-	return nil
-}
 
 // declaring a struct
 type DirectLoginToken struct {
@@ -545,24 +408,6 @@ func main() {
 
 		createEntitlements(obpApiHost, myToken)
 
-		// Issue many GET requests with different query parameters so we cause cache misses and thus exersise the database.
-		// Minimum maxOffsetMetrics and maxLimitMetrics should be 1
-		for o := 0; o <= maxOffsetMetrics; o++ {
-
-			for l := 1; l <= maxLimitMetrics; l++ {
-
-				getMetrics(obpApiHost, myToken, o, l)
-				// Get it a second time, should hit any cache.
-				getMetrics(obpApiHost, myToken, o, l)
-			}
-		}
-
-		//	projectID := "my-go-langproject-96968"
-		//		datasetID := "obp1"
-		//		tableID := "metric"
-
-		//insertRows(projectID, datasetID, tableID)
-
 		loopDynamicEndpoints(obpApiHost, myToken, loopCreateDynamicEndpoints)
 
 		getVariousResourceDocs(obpApiHost, myToken, apiExplorerHost, tags, loopResourceDocs, printResourceDocs)
@@ -638,14 +483,6 @@ func getDirectLoginToken(obpApiHost string, username string, password string, co
 	// Nothing in the body
 	req, err1 := http.NewRequest("POST", requestURL, nil)
 
-	// Header
-	//DirectLoginHeaderValue := fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)
-	//fmt.Printf("DirectLoginHeaderValue : %s\n", DirectLoginHeaderValue)
-
-	// Headers
-	//req.Header.Add("DirectLogin", DirectLoginHeaderValue)
-	//req.Header.Add("Content-Type", "application/json")
-
 	req.Header = http.Header{
 		"Content-Type": {"application/json"},
 		"DirectLogin":  {fmt.Sprintf("username=%s, password=%s, consumer_key=%s", username, password, consumerKey)},
@@ -653,13 +490,6 @@ func getDirectLoginToken(obpApiHost string, username string, password string, co
 
 	// Do the Request
 	resp, err1 := client.Do(req)
-
-	// var j interface{}
-	// var err = json.NewDecoder(resp.Body).Decode(&j)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("%s", j)
 
 	if err1 == nil {
 		fmt.Println("We got a response from the http server. Will check Response Status Code...")
@@ -706,14 +536,11 @@ func getUserId(obpApiHost string, token string) (string, error) {
 	var currentUserId CurrentUserId
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current/user_id", obpApiHost)
-	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/users/current", obpApiHost)
 
 	req, erry := http.NewRequest("GET", requestURL, nil)
 	if erry != nil {
 		fmt.Println("Failure constructing NewRequest: ", erry)
 	}
-
-	//var hardCodedToken = "eyJhbGciOiJIUzI1NiJ9.eyIiOiIifQ.Bk5ubGsnLHkyH-R4UOv-fS5oJULczUF-qcQglV_nhLY"
 
 	req.Header = http.Header{
 		"Content-Type": {"application/json"},
@@ -726,11 +553,6 @@ func getUserId(obpApiHost string, token string) (string, error) {
 	if err1 != nil {
 		fmt.Println("***** Failure trying to get user_id: ", err1)
 	}
-
-	// This approach to setting DirectLogin header does not seem to work
-	//DirectLoginHeaderValue := fmt.Sprintf("token=%s", token)
-	// req.Header.Set("DirectLogin", fmt.Sprintf("token=%s", token))
-	// req.Header.Set("Content-Type", "application/json")
 
 	// Read Response Body
 	respBody, _ := io.ReadAll(resp.Body)
@@ -858,92 +680,6 @@ func createDynamicEndpoints(obpApiHost string, token string, modifier string) er
 	// Create request
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/dynamic-endpoints", obpApiHost)
-	/*
-		jsonStr := `{
-			"swagger": "2.0",
-			"info": {
-				"title": "Bank Accounts (Dynamic Endpoint)",
-				"version": "1.0.0"
-			},
-			"definitions": {
-				"AnAccount": {
-					"type": "object",
-					"properties": {
-						"account_name": {
-							"type": "string",
-							"example": "family account"
-						},
-						"account_balance": {
-							"type": "string",
-							"example": "1000.01"
-						}
-					}
-				}
-			},
-			"paths": {
-				"/accounts": {
-					"post": {
-						"operationId": "POST_account",
-						"produces": [
-							"application/json"
-						],
-						"responses": {
-							"201": {
-								"description": "Success Response",
-								"schema": {
-									"$ref": "#/definitions/AnAccount"
-								}
-							}
-						},
-						"consumes": [
-							"application/json"
-						],
-						"description": "POST Accounts",
-						"summary": "POST Accounts"
-					}
-				},
-				"/accounts/{account_id}": {
-					"get": {
-						"operationId": "GET_account",
-						"produces": [
-							"application/json"
-						],
-						"responses": {
-							"200": {
-								"description": "Success Response",
-								"schema": {
-									"$ref": "#/definitions/AccountName"
-								}
-							}
-						},
-						"consumes": [
-							"application/json"
-						],
-						"description": "Get Bank Account",
-						"summary": "Get Bank Account by Id"
-					}
-				}
-			},
-			"host": "obp_mock",
-			"schemes": [
-				"http",
-				"https"
-			]
-		}`
-
-	*/
-
-	// var swaggerData Swagger
-
-	// var modifier string = randSeq(10)
-
-	// // Load the json string into an instance of a struct
-	// err := json.Unmarshal([]byte(jsonStr), &swaggerData)
-	// if err != nil {
-	// 	fmt.Println("Error:", err)
-	// } else {
-	// 	fmt.Println("Unmarshal of json into struct instance  seems ok")
-	// }
 
 	swaggerData := getSwagger(modifier)
 
@@ -954,86 +690,6 @@ func createDynamicEndpoints(obpApiHost string, token string, modifier string) er
 	fmt.Println("Schemes:", swaggerData.Schemes)
 	fmt.Println("Definitions:", swaggerData.Definitions)
 	fmt.Println("Paths:", swaggerData.Paths)
-
-	// Set a new title
-
-	/*
-		swaggerData.Info.Title = fmt.Sprintf("%s - %s", swaggerData.Info.Title, modifier)
-
-		fmt.Printf("Here is the updated title\n")
-
-		fmt.Printf("%+v\n", swaggerData.Info.Title)
-
-		fmt.Printf("Here are Paths......\n")
-
-		fmt.Printf("%+v\n", swaggerData.Paths)
-
-		for key, val := range swaggerData.Paths {
-			fmt.Printf("key is: %+v val is: %+v\n", key, val)
-
-			// note postThing is a COPY
-			postThing, ok := val["post"]
-			// If the key exists
-			if ok {
-				// Do something
-				originalOperationId := postThing.OperationId
-				fmt.Printf("postThing.originalOperationId: %+v \n", originalOperationId)
-
-				postThing.OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
-
-				// hmm can't change this in place?
-				//val["post"].OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
-
-				fmt.Printf("postThing.OperationId is now: %+v \n", postThing.OperationId)
-			} else {
-				fmt.Println("could not get postThing")
-			}
-
-			getThing, ok := val["get"]
-			// If the key exists
-			if ok {
-				// Do something
-				originalOperationId := getThing.OperationId
-				fmt.Printf("getThing.originalOperationId: %+v \n", originalOperationId)
-				getThing.OperationId = fmt.Sprintf("%s_%s", modifier, originalOperationId)
-
-				fmt.Printf("getThing.OperationId is now: %+v \n", getThing.OperationId)
-			} else {
-				fmt.Println("could not get getThing")
-			}
-
-			fmt.Printf("get of val is : %+v\n", val["get"])
-			fmt.Printf("put of val is : %+v\n", val["put"])
-			fmt.Printf("delete of val is : %+v\n", val["delete"])
-			fmt.Printf("head of val is : %+v\n", val["head"])
-
-		}
-
-		fmt.Printf("Here are Paths as we process......\n")
-
-		// Add a random prefix to every path. The path is a key.
-		for key, val := range swaggerData.Paths {
-
-			// assume paths are unique to start with so we can use a static modifier
-			newKey := fmt.Sprintf("/%s%s", modifier, key)
-
-			fmt.Println(newKey)
-
-			swaggerData.Paths[newKey] = val
-
-			delete(swaggerData.Paths, key)
-
-		}
-
-		fmt.Printf("Here are Paths after Modification......\n")
-
-		for key, val := range swaggerData.Paths {
-			fmt.Println(key, val)
-
-		}
-
-		fmt.Printf("...... Done ......\n")
-	*/
 
 	// Convert the struct to json
 	swaggerJson, err := json.Marshal(swaggerData)
@@ -1072,109 +728,6 @@ func createDynamicEndpoints(obpApiHost string, token string, modifier string) er
 	fmt.Println("response Body : ", string(respBody))
 
 	return err1
-
-}
-
-func getMetrics(obpApiHost string, token string, offset int, limit int) (string, error) {
-
-	fmt.Println(fmt.Sprintf("hello from getMetrics offset is %d, limit is %d ", offset, limit))
-
-	// Create client
-	client := &http.Client{}
-
-	// defining a struct instance, we will put the token in this.
-	var currentUserId CurrentUserId
-
-	requestURL := fmt.Sprintf("%s/obp/v5.1.0/management/metrics?offset=%d&limit=%d", obpApiHost, offset, limit)
-
-	req, erry := http.NewRequest("GET", requestURL, nil)
-	if erry != nil {
-		fmt.Println("Failure : ", erry)
-	}
-
-	req.Header = http.Header{
-		"Content-Type": {"application/json"},
-		"DirectLogin":  {fmt.Sprintf("token=%s", token)},
-	}
-
-	before := time.Now()
-
-	// Fetch Request
-	resp, err1 := client.Do(req)
-
-	after := time.Now()
-
-	duration := after.Sub(before)
-
-	if err1 != nil {
-		fmt.Println("***** Failure when getting Metrics: ", err1)
-	}
-
-	// Read Response Body
-	respBody, _ := io.ReadAll(resp.Body)
-
-	// Display Results
-	fmt.Println("getMetrics response Status : ", resp.Status)
-
-	fmt.Println(fmt.Sprintf("getMetrics response Status was %s, offset was %d, limit was %d duration was %s", resp.Status, offset, limit, duration))
-
-	//fmt.Println("response Headers : ", resp.Header)
-
-	if resp.StatusCode != 200 {
-		fmt.Println("getMetrics response Body : ", string(respBody))
-		fmt.Println(fmt.Sprintf("offset was %d", offset))
-		fmt.Println(fmt.Sprintf("limit was %d", limit))
-	} else {
-
-		// Unmarshal JSON into the struct
-		var metricsWrapper MetricsWrapper
-		err := json.Unmarshal([]byte(respBody), &metricsWrapper)
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-
-		// Accessing the data
-
-		metrics := metricsWrapper.Metrics
-
-		fmt.Println(fmt.Sprintf("Here are the %d Metrics records:", len(metrics)))
-
-		for _, metric := range metrics {
-			fmt.Printf("User ID: %s\n", metric.UserID)
-			fmt.Printf("URL: %s\n", metric.URL)
-			fmt.Printf("Date: %s\n", metric.Date)
-			fmt.Printf("User Name: %s\n", metric.UserName)
-			fmt.Printf("App Name: %s\n", metric.AppName)
-			fmt.Printf("Developer Email: %s\n", metric.DeveloperEmail)
-			fmt.Printf("Implemented By Partial Function: %s\n", metric.ImplementedByPartialFunction)
-			fmt.Printf("Implemented In Version: %s\n", metric.ImplementedInVersion)
-			fmt.Printf("Consumer ID: %s\n", metric.ConsumerID)
-			fmt.Printf("Verb: %s\n", metric.Verb)
-			fmt.Printf("Correlation ID: %s\n", metric.CorrelationID)
-			fmt.Printf("Duration: %d\n", metric.Duration)
-			fmt.Printf("Source IP: %s\n", metric.SourceIP)
-			fmt.Printf("Target IP: %s\n", metric.TargetIP)
-			fmt.Printf("Response Body: %s\n", metric.ResponseBody)
-
-			insertMetricRow("my-go-langproject-96968", "obp1", "metric", metric)
-
-		}
-
-	}
-
-	//fmt.Println("getMetrics response Body : ", string(respBody))
-
-	// assuming respBody is the JSON equivelent of DirectLoginToken, put it in directLoginToken1
-	//err2 := json.Unmarshal(respBody, &currentUserId)
-
-	//if err2 != nil {
-	//		fmt.Println(err2)
-	//	}
-
-	//	fmt.Println("Struct instance for currentUserId is:", currentUserId)
-	//	fmt.Printf("UserId is %s \n", currentUserId.UserId)
-
-	return currentUserId.UserId, nil
 
 }
 
@@ -1233,6 +786,23 @@ func getRoot(obpApiHost string, token string) (root, error) {
 
 }
 
+func sortResourceDocs(rds ResourceDocs) (ResourceDocs, error) {
+	sort.SliceStable(rds, func(i, j int) bool {
+		return rds[i].summary < rds[j].summary
+	})
+	return rds, nil
+}
+
+func sortResourceDocsByID(docs *ResourceDocs) (ResourceDocs, error) {
+	// Define a custom sorting function
+	less := func(i, j int) bool {
+		return docs.ResourceDocs[i].OperationID < docs.ResourceDocs[j].OperationID
+	}
+
+	// Sort the ResourceDocs using the custom sorting function
+	return sort.Slice(docs.ResourceDocs, less), nil
+}
+
 func getResourceDocs(obpApiHost string, token string, tryCount int, content string, apiExplorerHost string, tags string, printResourceDocs int) (int, error) {
 
 	fmt.Println("Hello from getResourceDocs. Using obpApiHost: ", obpApiHost)
@@ -1244,8 +814,6 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 	var myResourceDocs ResourceDocs
 
 	requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.1.0/obp?tags=%s&content=%s", obpApiHost, tags, content)
-
-	//requestURL := fmt.Sprintf("%s/obp/v5.1.0/resource-docs/OBPv5.0.0/obp?tags=%s&content=%s", obpApiHost, tags, content)
 
 	fmt.Println("requestURL : ", requestURL)
 
@@ -1290,6 +858,14 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 
 	if err2 != nil {
 		fmt.Println(err2)
+	}
+
+	// sort here
+
+	sortedResourceDocs, err3 := sortResourceDocsByID(&myResourceDocs)
+
+	if err3 != nil {
+		fmt.Println(err3)
 	}
 
 	/* Example data for testing
@@ -1355,10 +931,10 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 
 	if printResourceDocs == 1 { // Trying to use bool here was ugly
 
-		for i := 0; i < len(myResourceDocs.ResourceDocs); i++ {
+		for i := 0; i < len(sortedResourceDocs.ResourceDocs); i++ {
 			//fmt.Printf(" OperationID: %s Summary: %s \n", myResourceDocs.ResourceDocs[i].OperationID, myResourceDocs.ResourceDocs[i].Summary)
 
-			fmt.Printf("[%s](%s/operationid/%s)\n", myResourceDocs.ResourceDocs[i].Summary, apiExplorerHost, myResourceDocs.ResourceDocs[i].OperationID)
+			fmt.Printf("[%s](%s/operationid/%s)\n", sortedResourceDocs.ResourceDocs[i].Summary, apiExplorerHost, sortedResourceDocs.ResourceDocs[i].OperationID)
 		}
 
 	}
@@ -1366,7 +942,7 @@ func getResourceDocs(obpApiHost string, token string, tryCount int, content stri
 
 	// https://apiexplorer-ii-sandbox.openbankproject.com/operationid/OBPv4.0.0-getBankLevelEndpointTags?version=OBPv5.1.0
 
-	return len(myResourceDocs.ResourceDocs), nil
+	return len(sortedResourceDocs.ResourceDocs), nil
 
 }
 
